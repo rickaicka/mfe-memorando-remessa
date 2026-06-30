@@ -1,0 +1,11 @@
+<p>Usuário no MFE: {{ nomeUsuario() }}</p>
+
+@if (usuario()) {
+  <p>Email: {{ usuario()?.email }}</p>
+}
+
+@if (podeVerFinanceiro()) {
+  <button type="button">
+    Ação financeira
+  </button>
+}
