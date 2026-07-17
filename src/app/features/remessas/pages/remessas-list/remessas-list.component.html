@@ -1,7 +1,414 @@
-<section class="remessas-list">
-  <h1>Lista de Remessas</h1>
+<ion-content [fullscreen]="true">
+  <ion-refresher
+    slot="fixed"
+    (ionRefresh)="atualizarLista($event)"
+  >
+    <ion-refresher-content
+      pullingText="Puxe para atualizar"
+      refreshingText="Atualizando..."
+    />
+  </ion-refresher>
 
-  <p>
-    Aqui ficará a listagem dos memorandos de remessas.
-  </p>
-</section>
+  <main class="memorando-lista">
+    <header class="page-heading">
+      <section class="page-heading__main">
+        <button
+          type="button"
+          class="page-heading__back"
+          aria-label="Voltar"
+          (click)="voltar()"
+        >
+          <ion-icon name="arrow-back-outline" />
+        </button>
+
+        <div class="page-heading__text">
+          <h1>Memorando de Remessa</h1>
+
+          <p>
+            Selecione os filtros e pesquise as informações
+            para envio do memorando.
+          </p>
+        </div>
+      </section>
+    </header>
+
+    <section
+      class="search-container"
+      aria-label="Pesquisa de memorandos"
+    >
+      <ion-searchbar
+        class="memorando-searchbar"
+        mode="md"
+        inputmode="search"
+        enterkeyhint="search"
+        placeholder="Buscar por código, obra, cliente, responsável..."
+        [debounce]="400"
+        [value]="filtros().search"
+        (ionInput)="onSearchChange($event)"
+      />
+    </section>
+
+    <section class="filters-card">
+      <button
+        type="button"
+        class="filters-card__header"
+        [attr.aria-expanded]="filtrosAbertos()"
+        (click)="alternarFiltros()"
+      >
+        <span class="filters-card__title">
+          <ion-icon name="filter-outline" />
+          <strong>Filtros</strong>
+        </span>
+
+        <ion-icon
+          [name]="
+            filtrosAbertos()
+              ? 'chevron-up-outline'
+              : 'chevron-down-outline'
+          "
+        />
+      </button>
+
+      @if (filtrosAbertos()) {
+        <div class="filters-card__body">
+          <div class="filters-grid">
+            <label class="filter-field">
+              <span>Data de envio de</span>
+
+              <ion-input
+                class="filter-control"
+                mode="md"
+                fill="outline"
+                type="date"
+                aria-label="Data inicial de envio"
+                [value]="filtros().shippingDateFrom"
+                (ionChange)="onDataInicialChange($event)"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span>Até</span>
+
+              <ion-input
+                class="filter-control"
+                mode="md"
+                fill="outline"
+                type="date"
+                aria-label="Data final de envio"
+                [value]="filtros().shippingDateTo"
+                (ionChange)="onDataFinalChange($event)"
+              />
+            </label>
+
+            <label class="filter-field">
+              <span>Status M.R</span>
+
+              <ion-select
+                class="filter-control"
+                mode="md"
+                fill="outline"
+                interface="popover"
+                aria-label="Status do memorando"
+                placeholder="Todos"
+                [value]="filtros().status"
+                (ionChange)="onStatusChange($event)"
+              >
+                <ion-select-option [value]="null">
+                  Todos
+                </ion-select-option>
+
+                @for (
+                  status of opcoes().statuses;
+                  track status.value
+                  ) {
+                  <ion-select-option
+                    [value]="status.value"
+                  >
+                    {{ status.label }}
+                  </ion-select-option>
+                }
+              </ion-select>
+            </label>
+
+            <label class="filter-field">
+              <span>Centro de custo</span>
+
+              <ion-select
+                class="filter-control"
+                mode="md"
+                fill="outline"
+                interface="popover"
+                aria-label="Centro de custo"
+                placeholder="Todos"
+                [value]="filtros().costCenter"
+                (ionChange)="onCentroCustoChange($event)"
+              >
+                <ion-select-option [value]="null">
+                  Todos
+                </ion-select-option>
+
+                @for (
+                  centroCusto of opcoes().cost_centers;
+                  track centroCusto.value
+                  ) {
+                  <ion-select-option
+                    [value]="centroCusto.value"
+                  >
+                    {{ centroCusto.label }}
+                  </ion-select-option>
+                }
+              </ion-select>
+            </label>
+          </div>
+
+          @if (possuiFiltrosAtivos()) {
+            <button
+              type="button"
+              class="clear-filters"
+              (click)="limparFiltros()"
+            >
+              Limpar filtros
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <section
+      class="memorandos-container"
+      [attr.aria-busy]="loading()"
+    >
+      @if (loading()) {
+        @for (skeleton of skeletonItems; track skeleton) {
+          <article class="memorando-card skeleton-card">
+            <div class="skeleton-card__checkbox">
+              <ion-skeleton-text [animated]="true" />
+            </div>
+
+            <div class="skeleton-card__content">
+              <ion-skeleton-text
+                class="skeleton-card__title"
+                [animated]="true"
+              />
+
+              <ion-skeleton-text
+                class="skeleton-card__line"
+                [animated]="true"
+              />
+
+              <ion-skeleton-text
+                class="skeleton-card__line"
+                [animated]="true"
+              />
+
+              <ion-skeleton-text
+                class="skeleton-card__line skeleton-card__line--small"
+                [animated]="true"
+              />
+            </div>
+          </article>
+        }
+      } @else if (error()) {
+        <section class="feedback-state">
+          <ion-icon name="alert-circle-outline" />
+
+          <h2>Não foi possível carregar a lista</h2>
+
+          <p>{{ error() }}</p>
+
+          <ion-button
+            fill="outline"
+            (click)="consultar()"
+          >
+            <ion-icon
+              slot="start"
+              name="refresh-outline"
+            />
+
+            Tentar novamente
+          </ion-button>
+        </section>
+      } @else if (memorandos().length === 0) {
+        <section class="feedback-state">
+          <ion-icon name="document-text-outline" />
+
+          <h2>Nenhum memorando encontrado</h2>
+
+          <p>
+            Altere os filtros ou faça uma nova pesquisa.
+          </p>
+
+          @if (possuiFiltrosAtivos()) {
+            <ion-button
+              fill="outline"
+              (click)="limparFiltros()"
+            >
+              Limpar filtros
+            </ion-button>
+          }
+        </section>
+      } @else {
+        @for (
+          memorando of memorandos();
+          track memorando.id
+          ) {
+          <article
+            class="memorando-card"
+            [class.memorando-card--selected]="
+              estaSelecionado(memorando.id)
+            "
+          >
+            <ion-checkbox
+              class="memorando-card__checkbox"
+              mode="md"
+              aria-label="Selecionar memorando"
+              [checked]="estaSelecionado(memorando.id)"
+              (ionChange)="
+                selecionarMemorando(
+                  memorando.id,
+                  $event
+                )
+              "
+            />
+
+            <button
+              type="button"
+              class="memorando-card__content"
+              [attr.aria-label]="
+                'Abrir memorando ' + memorando.code
+              "
+              (click)="abrirMemorando(memorando)"
+            >
+              <div class="memorando-card__header">
+                <div class="memorando-card__identification">
+                  <strong>{{ memorando.code }}</strong>
+
+                  <span class="memorando-card__revision">
+                    Rev. {{ memorando.revision }}
+                  </span>
+                </div>
+
+                <div class="memorando-card__actions">
+                  <span
+                    class="status-badge"
+                    [attr.data-status]="memorando.status"
+                  >
+                    {{ memorando.status_label }}
+                  </span>
+
+                  <ion-icon name="chevron-forward-outline" />
+                </div>
+              </div>
+
+              <div class="memorando-card__information">
+                <p class="information-row">
+                  <ion-icon name="business-outline" />
+
+                  <span>
+                    <strong>{{ memorando.cost_center }}</strong>
+
+                    <span class="information-row__separator">
+                      •
+                    </span>
+
+                    {{ memorando.work_name }}
+                  </span>
+                </p>
+
+                <p class="information-row">
+                  <ion-icon name="person-outline" />
+
+                  <span>{{ memorando.client_name }}</span>
+                </p>
+
+                <div class="information-row-group">
+                  <p class="information-row">
+                    <ion-icon name="calendar-clear-outline" />
+
+                    <span>
+                      {{
+                        formatarData(
+                          memorando.shipping_date
+                        )
+                      }}
+                    </span>
+                  </p>
+
+                  <p class="information-row">
+                    <ion-icon name="document-text-outline" />
+
+                    <span>{{ memorando.subject }}</span>
+                  </p>
+                </div>
+
+                <p class="information-row">
+                  <ion-icon name="briefcase-outline" />
+
+                  <span>
+                    {{ obterResponsaveis(memorando) }}
+                  </span>
+                </p>
+              </div>
+            </button>
+          </article>
+        }
+      }
+    </section>
+
+    @if (
+      !loading() &&
+      !error() &&
+      totalRegistros() > 0
+      ) {
+      <footer class="pagination">
+        <ion-select
+          class="pagination__page-size"
+          mode="md"
+          interface="popover"
+          aria-label="Quantidade por página"
+          [value]="filtros().pageSize"
+          (ionChange)="onPageSizeChange($event)"
+        >
+          @for (
+            pageSize of pageSizeOptions;
+            track pageSize
+            ) {
+            <ion-select-option [value]="pageSize">
+              {{ pageSize }} por página
+            </ion-select-option>
+          }
+        </ion-select>
+
+        <span class="pagination__indicator">
+          {{ filtros().page }} de {{ totalPaginas() }}
+        </span>
+
+        <div class="pagination__actions">
+          <ion-button
+            fill="outline"
+            aria-label="Página anterior"
+            [disabled]="!podeVoltarPagina()"
+            (click)="paginaAnterior()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="chevron-back-outline"
+            />
+          </ion-button>
+
+          <ion-button
+            fill="outline"
+            aria-label="Próxima página"
+            [disabled]="!podeAvancarPagina()"
+            (click)="proximaPagina()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="chevron-forward-outline"
+            />
+          </ion-button>
+        </div>
+      </footer>
+    }
+  </main>
+</ion-content>

@@ -11,6 +11,6 @@ export const REMESSAS_ROUTES: Routes = [
     path: 'lista',
     loadComponent: () =>
       import('../features/remessas/pages/remessas-list/remessas-list.component')
-        .then(m => m.RemessasListComponent),
+        .then(m => m.MemorandoRemessaListaComponent),
   },
 ];
