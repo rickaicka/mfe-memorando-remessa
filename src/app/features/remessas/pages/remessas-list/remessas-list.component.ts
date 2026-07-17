@@ -1,32 +1,34 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Location } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ViewChild,
   computed,
   inject,
   signal,
 } from '@angular/core';
+
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { ActivatedRoute, Router } from '@angular/router';
 
 import {
   IonButton,
   IonCheckbox,
-  IonContent,
   IonIcon,
   IonInput,
-  IonRefresher,
-  IonRefresherContent,
   IonSearchbar,
   IonSelect,
   IonSelectOption,
   IonSkeletonText,
 } from '@ionic/angular/standalone';
 
+import { LucideSquarePlus } from '@lucide/angular';
+
 import { addIcons } from 'ionicons';
+
 import {
   alertCircleOutline,
   arrowBackOutline,
@@ -40,9 +42,10 @@ import {
   documentTextOutline,
   filterOutline,
   personOutline,
-  printOutline,
   refreshOutline,
 } from 'ionicons/icons';
+
+import { catchError, map, of, Subject, switchMap } from 'rxjs';
 
 import {
   MEMORANDO_REMESSA_DEFAULT_FILTERS,
@@ -54,14 +57,6 @@ import {
 } from '../../models/memorando-remessa.models';
 
 import { MemorandoRemessaService } from '../../services/memorando-remessa.service';
-
-import {
-  catchError,
-  map,
-  of,
-  Subject,
-  switchMap,
-} from 'rxjs';
 
 interface MemorandoConsultaResult {
   response: PaginatedResponse<MemorandoRemessaResumo>;
@@ -77,32 +72,30 @@ interface MemorandoConsultaResult {
   imports: [
     IonButton,
     IonCheckbox,
-    IonContent,
     IonIcon,
     IonInput,
-    IonRefresher,
-    IonRefresherContent,
     IonSearchbar,
     IonSelect,
     IonSelectOption,
     IonSkeletonText,
+    LucideSquarePlus,
   ],
 })
 export class MemorandoRemessaListaComponent {
-  @ViewChild(IonContent)
-  private content?: IonContent;
-
   private readonly service = inject(MemorandoRemessaService);
+
   private readonly router = inject(Router);
+
   private readonly activatedRoute = inject(ActivatedRoute);
+
   private readonly location = inject(Location);
+
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly consultarSubject = new Subject<void>();
 
-  private refresherElement: HTMLIonRefresherElement | null = null;
-
   readonly loading = signal<boolean>(false);
+
   readonly error = signal<string | null>(null);
 
   readonly filtrosAbertos = signal<boolean>(true);
@@ -112,6 +105,7 @@ export class MemorandoRemessaListaComponent {
   });
 
   readonly memorandos = signal<MemorandoRemessaResumo[]>([]);
+
   readonly totalRegistros = signal<number>(0);
 
   readonly selecionados = signal<ReadonlySet<number>>(new Set<number>());
@@ -122,6 +116,7 @@ export class MemorandoRemessaListaComponent {
   });
 
   readonly pageSizeOptions = [10, 20, 50];
+
   readonly skeletonItems = [1, 2, 3, 4];
 
   readonly totalPaginas = computed(() => {
@@ -161,7 +156,6 @@ export class MemorandoRemessaListaComponent {
       documentTextOutline,
       filterOutline,
       personOutline,
-      printOutline,
       refreshOutline,
     });
 
@@ -174,8 +168,10 @@ export class MemorandoRemessaListaComponent {
     this.location.back();
   }
 
-  imprimir(): void {
-    window.print();
+  novoMemorando(): void {
+    void this.router.navigate(['novo-memorando'], {
+      relativeTo: this.activatedRoute,
+    });
   }
 
   alternarFiltros(): void {
@@ -214,6 +210,7 @@ export class MemorandoRemessaListaComponent {
 
     this.atualizarFiltros({
       status: (value as MemorandoRemessaFiltros['status']) || null,
+
       page: 1,
     });
   }
@@ -270,12 +267,6 @@ export class MemorandoRemessaListaComponent {
     this.irParaPagina(this.filtros().page + 1);
   }
 
-  atualizarLista(event: Event): void {
-    this.refresherElement = event.target as HTMLIonRefresherElement;
-
-    this.consultar();
-  }
-
   abrirMemorando(memorando: MemorandoRemessaResumo): void {
     void this.router.navigate([memorando.id], {
       relativeTo: this.activatedRoute,
@@ -283,7 +274,9 @@ export class MemorandoRemessaListaComponent {
   }
 
   selecionarMemorando(memorandoId: number, event: Event): void {
-    const customEvent = event as CustomEvent<{ checked?: boolean }>;
+    const customEvent = event as CustomEvent<{
+      checked?: boolean;
+    }>;
 
     const checked = Boolean(customEvent.detail?.checked);
 
@@ -335,7 +328,14 @@ export class MemorandoRemessaListaComponent {
       return primeiroResponsavel;
     }
 
-    return `${primeiroResponsavel} +${quantidadeAdicional}`;
+    return `${primeiroResponsavel} ` + `+${quantidadeAdicional}`;
+  }
+
+  protected consultar(): void {
+    this.loading.set(true);
+    this.error.set(null);
+
+    this.consultarSubject.next();
   }
 
   private configurarConsulta(): void {
@@ -351,31 +351,34 @@ export class MemorandoRemessaListaComponent {
                 error: null,
               }),
             ),
+
             catchError((error: unknown) =>
               of<MemorandoConsultaResult>({
                 response: this.criarRespostaVazia(),
+
                 error: this.obterMensagemErro(error),
               }),
             ),
           );
         }),
+
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
         this.memorandos.set(result.response.results);
+
         this.totalRegistros.set(result.response.count);
+
         this.error.set(result.error);
         this.loading.set(false);
 
         this.manterSomenteSelecionadosVisiveis(result.response.results);
-
-        this.finalizarAtualizacao();
       });
   }
 
   private carregarOpcoes(): void {
     this.service
-      .obterOpcoes()
+      .obterOpcoesLista()
       .pipe(
         catchError(() =>
           of<MemorandoRemessaListOptions>({
@@ -385,7 +388,7 @@ export class MemorandoRemessaListaComponent {
         ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((opcoes) => {
+      .subscribe((opcoes: MemorandoRemessaListOptions) => {
         this.opcoes.set({
           statuses:
             opcoes.statuses?.length > 0 ? opcoes.statuses : [...MEMORANDO_REMESSA_STATUS_OPTIONS],
@@ -404,13 +407,6 @@ export class MemorandoRemessaListaComponent {
     this.consultar();
   }
 
-  protected consultar(): void {
-    this.loading.set(true);
-    this.error.set(null);
-
-    this.consultarSubject.next();
-  }
-
   private irParaPagina(page: number): void {
     const paginaNormalizada = Math.min(Math.max(page, 1), this.totalPaginas());
 
@@ -424,8 +420,6 @@ export class MemorandoRemessaListaComponent {
     }));
 
     this.consultar();
-
-    void this.content?.scrollToTop(250);
   }
 
   private manterSomenteSelecionadosVisiveis(memorandos: MemorandoRemessaResumo[]): void {
@@ -479,14 +473,5 @@ export class MemorandoRemessaListaComponent {
     const apiMessage = error.error?.detail || error.error?.message || error.error?.error;
 
     return apiMessage || 'Não foi possível carregar os memorandos.';
-  }
-
-  private finalizarAtualizacao(): void {
-    if (!this.refresherElement) {
-      return;
-    }
-
-    void this.refresherElement.complete();
-    this.refresherElement = null;
   }
 }
