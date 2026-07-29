@@ -11,7 +11,13 @@
       </button>
 
       <div class="page-heading__text">
-        <h1>Novo Memorando de Remessa</h1>
+        <h1>
+          @if (isEditing()) {
+            Editar Memorando de Remessa
+          } @else {
+            Novo Memorando de Remessa
+          }
+        </h1>
       </div>
     </section>
   </header>
@@ -23,13 +29,17 @@
   >
     <div
       class="memorando-page"
-      [attr.aria-busy]="loadingOptions() || processing()"
+      [attr.aria-busy]="
+        loadingOptions() ||
+        loadingMemorando() ||
+        processing()
+      "
     >
       @if (error()) {
         <section class="form-card feedback-state">
           <ion-icon name="alert-circle-outline" />
 
-          <h2>Não foi possível carregar o formulário</h2>
+          <h2>Não foi possível concluir a operação</h2>
 
           <p>{{ error() }}</p>
         </section>
@@ -52,7 +62,6 @@
               fill="outline"
               formControlName="code"
               placeholder="Gerado ao salvar"
-
             />
           </label>
 
@@ -65,7 +74,6 @@
               fill="outline"
               formControlName="costCenter"
               placeholder="Preenchido pela obra"
-
             />
           </label>
 
@@ -89,7 +97,7 @@
               mode="md"
               fill="outline"
               formControlName="responsible"
-              placeholder="Usuário logado"
+              placeholder="Usuário responsável"
             />
           </label>
 
@@ -112,7 +120,9 @@
                 client of clients();
                 track client.id
                 ) {
-                <ion-select-option [value]="client.id">
+                <ion-select-option
+                  [value]="client.id"
+                >
                   {{ client.name }}
                 </ion-select-option>
               }
@@ -176,43 +186,7 @@
       <section class="form-card selection-card">
         <div class="selection-grid">
           <section class="selection-column">
-            <h3>ESPÉCIE</h3>
-
-            <div class="checkbox-list">
-              @if (loadingOptions()) {
-                <ion-spinner name="crescent" />
-              } @else {
-                @for (
-                  option of species();
-                  track option.id
-                  ) {
-                  <label class="checkbox-option">
-                    <ion-checkbox
-                      mode="md"
-                      [checked]="
-                        estaEspecieSelecionada(option.id)
-                      "
-                      (ionChange)="
-                        selecionarEspecie(
-                          option.id,
-                          $event
-                        )
-                      "
-                    />
-
-                    <span>{{ option.label }}</span>
-                  </label>
-                } @empty {
-                  <span class="selection-empty">
-                    Nenhuma espécie disponível.
-                  </span>
-                }
-              }
-            </div>
-          </section>
-
-          <section class="selection-column">
-            <h3>FINALIDADE</h3>
+            <h3>Documentos Enviados</h3>
 
             <div class="checkbox-list">
               @if (loadingOptions()) {
@@ -222,22 +196,15 @@
                   option of purposes();
                   track option.id
                   ) {
-                  <label class="checkbox-option">
-                    <ion-checkbox
-                      mode="md"
-                      [checked]="
-                        estaFinalidadeSelecionada(option.id)
-                      "
-                      (ionChange)="
-                        selecionarFinalidade(
-                          option.id,
-                          $event
-                        )
-                      "
-                    />
-
-                    <span>{{ option.label }}</span>
-                  </label>
+                  <ion-checkbox
+                    class="checkbox-option drx-card--font-quicksand"
+                    mode="md"
+                    labelPlacement="end"
+                    [checked]="estaFinalidadeSelecionada(option.id)"
+                    (ionChange)="selecionarFinalidade(option, $event)"
+                  >
+                    <span class="">{{ option.label }}</span>
+                  </ion-checkbox>
                 } @empty {
                   <span class="selection-empty">
                     Nenhuma finalidade disponível.
@@ -246,47 +213,48 @@
               }
             </div>
           </section>
+        </div>
+      </section>
 
-          <section class="selection-column">
-            <h3>SOLICITAMOS</h3>
+      <section class="form-card observations-card">
+        <header
+          class="
+            section-heading
+            section-heading--neutral
+          "
+        >
+          <ion-icon name="chatbox-outline" />
 
-            <div class="checkbox-list">
-              @if (loadingOptions()) {
-                <ion-spinner name="crescent" />
-              } @else {
-                @for (
-                  option of requests();
-                  track option.id
-                  ) {
-                  <label class="checkbox-option">
-                    <ion-checkbox
-                      mode="md"
-                      [checked]="
-                        estaSolicitacaoSelecionada(option.id)
-                      "
-                      (ionChange)="
-                        selecionarSolicitacao(
-                          option.id,
-                          $event
-                        )
-                      "
-                    />
+          <h2>Observações</h2>
+        </header>
 
-                    <span>{{ option.label }}</span>
-                  </label>
-                } @empty {
-                  <span class="selection-empty">
-                    Nenhuma solicitação disponível.
-                  </span>
-                }
-              }
-            </div>
-          </section>
+        <div class="textarea-wrapper">
+          <ion-textarea
+            #notesTextarea
+            class="notes-control"
+            mode="md"
+            fill="outline"
+            formControlName="notes"
+            placeholder="Digite as observações..."
+            [autoGrow]="true"
+            [maxlength]="1000"
+            [counter]="false"
+            [rows]="4"
+          />
+
+          <span class="character-counter">
+            {{ notesLength }}/1000
+          </span>
         </div>
       </section>
 
       <section class="form-card files-card">
-        <header class="section-heading section-heading--neutral">
+        <header
+          class="
+            section-heading
+            section-heading--neutral
+          "
+        >
           <ion-icon name="attach-outline" />
 
           <h2>Arquivos</h2>
@@ -297,13 +265,25 @@
           class="visually-hidden"
           type="file"
           multiple
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+          accept="
+            .pdf,
+            .doc,
+            .docx,
+            .xls,
+            .xlsx,
+            .jpg,
+            .jpeg,
+            .png,
+            .dwg
+          "
           (change)="onFileInputChange($event)"
         />
 
         <div
           class="upload-zone"
-          [class.upload-zone--dragging]="isDragging()"
+          [class.upload-zone--dragging]="
+            isDragging()
+          "
           role="button"
           tabindex="0"
           aria-label="Selecionar arquivos para upload"
@@ -315,7 +295,9 @@
           (dragleave)="onDragLeave($event)"
           (drop)="onDrop($event)"
         >
-          <ion-icon name="cloud-upload-outline" />
+          <app-hub-icon
+            [name]="'cloud-upload'"
+          />
 
           <p>
             Arraste e solte os arquivos aqui
@@ -333,42 +315,48 @@
               fileInput.click()
             "
           >
-            <ion-icon
-              slot="start"
-              name="cloud-upload-outline"
+            <app-hub-icon
+              [name]="'file-upload'"
             />
 
             Upload de Arquivo
           </ion-button>
         </div>
 
-        @if (attachments().length > 0) {
+        @if (
+          existingAttachments().length > 0 ||
+          pendingAttachments().length > 0
+          ) {
           <div class="attachments">
             @for (
-              attachment of attachments();
+              attachment
+                of existingAttachments();
               track attachment.id
               ) {
               <article class="attachment-item">
                 <div class="attachment-item__icon">
-                  <ion-icon name="document-text-outline" />
+                  <ion-icon
+                    name="document-text-outline"
+                  />
                 </div>
 
-                <div class="attachment-item__information">
+                <div
+                  class="
+                    attachment-item__information
+                  "
+                >
                   <strong>
-                    {{ attachment.name }}
+                    {{ attachment.original_name }}
                   </strong>
 
                   <p>
-                    {{ attachment.sizeLabel }}
+                    {{
+                      formatarTamanho(
+                        attachment.size
+                      )
+                    }}
                   </p>
                 </div>
-
-                <span
-                  class="attachment-status"
-                  data-status="PENDENTE"
-                >
-                  Pendente
-                </span>
 
                 <button
                   type="button"
@@ -376,11 +364,20 @@
                     attachment-action
                     attachment-action--view
                   "
-                  aria-label="Visualizar arquivo"
+                  [attr.aria-label]="
+                    'Visualizar arquivo ' +
+                    attachment.original_name
+                  "
                   [disabled]="processing()"
-                  (click)="visualizarArquivo(attachment)"
+                  (click)="
+                    visualizarArquivoExistente(
+                      attachment
+                    )
+                  "
                 >
-                  <ion-icon name="eye-outline" />
+                  <app-hub-icon
+                    [name]="'eye-outline'"
+                  />
 
                   <span>Visualizar</span>
                 </button>
@@ -388,42 +385,97 @@
                 <button
                   type="button"
                   class="attachment-action"
-                  aria-label="Remover arquivo"
+                  [attr.aria-label]="
+                    'Remover arquivo ' +
+                    attachment.original_name
+                  "
                   [disabled]="processing()"
-                  (click)="removerArquivo(attachment.id)"
+                  (click)="
+                    removerArquivoExistente(
+                      attachment
+                    )
+                  "
                 >
-                  <ion-icon name="trash-outline" />
+                  <app-hub-icon
+                    [name]="'trash-outline'"
+                  />
+                </button>
+              </article>
+            }
+
+            @for (
+              attachment
+                of pendingAttachments();
+              track attachment.id
+              ) {
+              <article class="attachment-item">
+                <div class="attachment-item__icon">
+                  <ion-icon
+                    name="document-text-outline"
+                  />
+                </div>
+
+                <div
+                  class="
+                    attachment-item__information
+                  "
+                >
+                  <strong>
+                    {{ attachment.name }}
+                  </strong>
+
+                  <p>
+                    {{ attachment.sizeLabel }}
+                    • Aguardando envio
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  class="
+                    attachment-action
+                    attachment-action--view
+                  "
+                  [attr.aria-label]="
+                    'Visualizar arquivo ' +
+                    attachment.name
+                  "
+                  [disabled]="processing()"
+                  (click)="
+                    visualizarArquivoPendente(
+                      attachment
+                    )
+                  "
+                >
+                  <app-hub-icon
+                    [name]="'eye-outline'"
+                  />
+
+                  <span>Visualizar</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="attachment-action"
+                  [attr.aria-label]="
+                    'Remover arquivo ' +
+                    attachment.name
+                  "
+                  [disabled]="processing()"
+                  (click)="
+                    removerArquivoPendente(
+                      attachment.id
+                    )
+                  "
+                >
+                  <app-hub-icon
+                    [name]="'trash-outline'"
+                  />
                 </button>
               </article>
             }
           </div>
         }
-      </section>
-
-      <section class="form-card observations-card">
-        <header class="section-heading section-heading--neutral">
-          <ion-icon name="chatbox-outline" />
-
-          <h2>Observações</h2>
-        </header>
-
-        <div class="textarea-wrapper">
-          <ion-textarea
-            class="notes-control"
-            mode="md"
-            fill="outline"
-            formControlName="notes"
-            placeholder="Digite as observações..."
-            [autoGrow]="true"
-            [maxlength]="1000"
-            [counter]="false"
-            [rows]="4"
-          />
-
-          <span class="character-counter">
-            {{ notesLength }}/1000
-          </span>
-        </div>
       </section>
     </div>
 
@@ -434,13 +486,13 @@
         fill="outline"
         [disabled]="
           processing() ||
-          loadingOptions()
+          loadingOptions() ||
+          loadingMemorando()
         "
         (click)="enviar()"
       >
-        <ion-icon
-          slot="start"
-          name="send-outline"
+        <app-hub-icon
+          [name]="'send-outline'"
         />
 
         Enviar
@@ -452,7 +504,8 @@
           class="save-button"
           [disabled]="
             processing() ||
-            loadingOptions()
+            loadingOptions() ||
+            loadingMemorando()
           "
         >
           @if (processing()) {
@@ -461,9 +514,8 @@
               name="crescent"
             />
           } @else {
-            <ion-icon
-              slot="start"
-              name="save-outline"
+            <app-hub-icon
+              [name]="'save'"
             />
           }
 
@@ -476,11 +528,14 @@
           aria-label="Salvar memorando como rascunho"
           [disabled]="
             processing() ||
-            loadingOptions()
+            loadingOptions() ||
+            loadingMemorando()
           "
           (click)="salvar()"
         >
-          <ion-icon name="chevron-down-outline" />
+          <app-hub-icon
+            [name]="'chevron-down'"
+          />
         </button>
       </div>
     </footer>

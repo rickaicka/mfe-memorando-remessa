@@ -7,11 +7,12 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 import {
-  MemorandoArquivoResponse,
+  MemorandoArquivo,
   MemorandoClienteLegado,
   MemorandoCreatePayload,
   MemorandoFormularioOpcoes,
   MemorandoObraLegado,
+  MemorandoRemessaDetalhe,
   MemorandoRemessaFiltros,
   MemorandoRemessaListOptions,
   MemorandoRemessaResumo,
@@ -79,9 +80,23 @@ export class MemorandoRemessaService {
     );
   }
 
-  listarObrasLegado(): Observable<MemorandoObraLegado[] | PaginatedResponse<MemorandoObraLegado>> {
+  listarObrasLegado(
+    clientName: string,
+    clientDocument = '',
+  ): Observable<MemorandoObraLegado[] | PaginatedResponse<MemorandoObraLegado>> {
+    let params = new HttpParams().set('client_name', clientName.trim());
+
+    const normalizedDocument = clientDocument.trim();
+
+    if (normalizedDocument) {
+      params = params.set('client_document', normalizedDocument);
+    }
+
     return this.http.get<MemorandoObraLegado[] | PaginatedResponse<MemorandoObraLegado>>(
       `${this.baseUrl}/legado/obras/`,
+      {
+        params,
+      },
     );
   }
 
@@ -89,33 +104,50 @@ export class MemorandoRemessaService {
     return this.http.get<MemorandoObraLegado>(`${this.baseUrl}/legado/obras/${legacyWorkId}/`);
   }
 
-  obterPorId(memorandoId: number): Observable<MemorandoRemessaResumo> {
-    return this.http.get<MemorandoRemessaResumo>(`${this.resourceUrl}/${memorandoId}/`);
+  obterPorId(memorandoId: number): Observable<MemorandoRemessaDetalhe> {
+    return this.http.get<MemorandoRemessaDetalhe>(`${this.resourceUrl}/${memorandoId}/`);
   }
 
-  criar(payload: MemorandoCreatePayload): Observable<MemorandoRemessaResumo> {
-    return this.http.post<MemorandoRemessaResumo>(`${this.resourceUrl}/`, payload);
+  criar(payload: MemorandoCreatePayload): Observable<MemorandoRemessaDetalhe> {
+    return this.http.post<MemorandoRemessaDetalhe>(`${this.resourceUrl}/`, payload);
   }
 
   atualizar(
     memorandoId: number,
     payload: Partial<MemorandoCreatePayload>,
-  ): Observable<MemorandoRemessaResumo> {
-    return this.http.patch<MemorandoRemessaResumo>(`${this.resourceUrl}/${memorandoId}/`, payload);
+  ): Observable<MemorandoRemessaDetalhe> {
+    return this.http.patch<MemorandoRemessaDetalhe>(`${this.resourceUrl}/${memorandoId}/`, payload);
   }
 
-  adicionarArquivo(memorandoId: number, file: File): Observable<MemorandoArquivoResponse> {
+  adicionarArquivo(memorandoId: number, file: File): Observable<MemorandoArquivo> {
     const formData = new FormData();
 
     formData.append('file', file, file.name);
 
-    return this.http.post<MemorandoArquivoResponse>(
+    return this.http.post<MemorandoArquivo>(
       `${this.resourceUrl}/${memorandoId}/arquivos/`,
       formData,
     );
   }
 
-  enviar(memorandoId: number): Observable<MemorandoRemessaResumo> {
-    return this.http.post<MemorandoRemessaResumo>(`${this.resourceUrl}/${memorandoId}/enviar/`, {});
+  removerArquivo(memorandoId: number, arquivoId: number): Observable<void> {
+    return this.http.delete<void>(`${this.resourceUrl}/${memorandoId}/arquivos/${arquivoId}/`);
+  }
+
+  removerMemorando(memorandoId: number): Observable<void> {
+    return this.http.delete<void>(`${this.resourceUrl}/${memorandoId}/`);
+  }
+
+  baixarArquivo(memorandoId: number, arquivoId: number): Observable<Blob> {
+    return this.http.get(`${this.resourceUrl}/${memorandoId}/arquivos/${arquivoId}/download/`, {
+      responseType: 'blob',
+    });
+  }
+
+  enviar(memorandoId: number): Observable<MemorandoRemessaDetalhe> {
+    return this.http.post<MemorandoRemessaDetalhe>(
+      `${this.resourceUrl}/${memorandoId}/enviar/`,
+      {},
+    );
   }
 }

@@ -15,4 +15,11 @@ export const REMESSAS_ROUTES: Routes = [
         (c) => c.CadastrarMemorandoRemessas,
       ),
   },
+  {
+    path: 'editar-memorando/:id',
+    loadComponent: () =>
+      import('./features/remessas/pages/cadastrar-memorando-remessas/cadastrar-memorando-remessas').then(
+        (c) => c.CadastrarMemorandoRemessas,
+      ),
+  },
 ];

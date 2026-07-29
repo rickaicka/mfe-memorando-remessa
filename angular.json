@@ -28,19 +28,39 @@
             "development": {
               "target": "daruix-mfe-remessas:esbuild:development",
               "dev": true
+            },
+            "emulator": {
+              "target": "daruix-mfe-remessas:esbuild:emulator",
+              "dev": true
+            },
+            "device": {
+              "target": "daruix-mfe-remessas:esbuild:device",
+              "dev": true
             }
           },
           "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular-architects/native-federation:build",
-          "options": {
-            "target": "daruix-mfe-remessas:serve-original:development",
-            "rebuildDelay": 500,
-            "dev": true,
-            "cacheExternalArtifacts": false,
-            "port": 0
-          }
+          "options": {},
+          "configurations": {
+            "development": {
+              "target": "daruix-mfe-remessas:serve-original:development",
+              "dev": true,
+              "port": 4301
+            },
+            "emulator": {
+              "target": "daruix-mfe-remessas:serve-original:emulator",
+              "dev": true,
+              "port": 4301
+            },
+            "device": {
+              "target": "daruix-mfe-remessas:serve-original:device",
+              "dev": true,
+              "port": 4301
+            }
+          },
+          "defaultConfiguration": "development"
         },
         "test": {
           "builder": "@angular/build:unit-test"
@@ -48,6 +68,10 @@
         "esbuild": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": {
+              "base": "dist/daruix-mfe-remessas",
+              "browser": ""
+            },
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
@@ -57,11 +81,21 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
-            "polyfills": ["es-module-shims"]
+            "styles": [
+              "src/styles.scss"
+            ],
+            "polyfills": [
+              "es-module-shims"
+            ]
           },
           "configurations": {
             "production": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.production.ts"
+                }
+              ],
               "budgets": [
                 {
                   "type": "initial",
@@ -70,34 +104,72 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumWarning": "16kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all"
             },
             "development": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ],
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "emulator": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.emulator.ts"
+                }
+              ],
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            },
+            "device": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.device.ts"
+                }
+              ],
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
             }
           },
           "defaultConfiguration": "production"
         },
         "serve-original": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "host": "0.0.0.0",
+            "headers": {
+              "Access-Control-Allow-Origin": "*"
+            }
+          },
           "configurations": {
             "production": {
               "buildTarget": "daruix-mfe-remessas:esbuild:production"
             },
             "development": {
               "buildTarget": "daruix-mfe-remessas:esbuild:development"
+            },
+            "emulator": {
+              "buildTarget": "daruix-mfe-remessas:esbuild:emulator"
+            },
+            "device": {
+              "buildTarget": "daruix-mfe-remessas:esbuild:device"
             }
           },
-          "defaultConfiguration": "development",
-          "options": {
-            "port": 4301
-          }
+          "defaultConfiguration": "development"
         }
       }
     }

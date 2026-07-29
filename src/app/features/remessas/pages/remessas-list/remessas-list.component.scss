@@ -40,11 +40,7 @@ button {
   min-height: 100%;
 
   margin: 0 auto;
-
-  padding:
-    18px
-    12px
-    calc(112px + env(safe-area-inset-bottom));
+  padding: 18px 12px;
 
   color: var(--memorando-text);
   background: var(--memorando-background);
@@ -166,6 +162,7 @@ button {
   width: 100%;
 
   margin: 16px 0 14px;
+  gap: 10px;
 }
 
 .search-container {
@@ -701,10 +698,7 @@ ion-select.filter-control {
 
 @media (min-width: 600px) {
   .memorando-lista {
-    padding:
-      24px
-      20px
-      calc(40px + env(safe-area-inset-bottom));
+    padding: 24px 20px 40px;
   }
 
   .filters-grid {
@@ -763,6 +757,10 @@ ion-select.filter-control {
 
       --padding-start: 10px;
       --padding-end: 10px;
+
+      app-hub-icon{
+        font-size: 9px;
+      }
     }
   }
 

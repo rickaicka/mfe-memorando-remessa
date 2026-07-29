@@ -25,7 +25,7 @@ import {
   IonSkeletonText,
 } from '@ionic/angular/standalone';
 
-import { LucideSquarePlus } from '@lucide/angular';
+import { LucideSquarePlus, LucideTrash } from '@lucide/angular';
 
 import { addIcons } from 'ionicons';
 
@@ -45,7 +45,7 @@ import {
   refreshOutline,
 } from 'ionicons/icons';
 
-import { catchError, map, of, Subject, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, Subject, switchMap } from 'rxjs';
 
 import {
   MEMORANDO_REMESSA_DEFAULT_FILTERS,
@@ -57,6 +57,7 @@ import {
 } from '../../models/memorando-remessa.models';
 
 import { MemorandoRemessaService } from '../../services/memorando-remessa.service';
+import { HubIconComponent } from '@daruix/hub-ui';
 
 interface MemorandoConsultaResult {
   response: PaginatedResponse<MemorandoRemessaResumo>;
@@ -79,6 +80,7 @@ interface MemorandoConsultaResult {
     IonSelectOption,
     IonSkeletonText,
     LucideSquarePlus,
+    LucideTrash,
   ],
 })
 export class MemorandoRemessaListaComponent {
@@ -160,7 +162,6 @@ export class MemorandoRemessaListaComponent {
     });
 
     this.configurarConsulta();
-    this.carregarOpcoes();
     this.consultar();
   }
 
@@ -268,7 +269,7 @@ export class MemorandoRemessaListaComponent {
   }
 
   abrirMemorando(memorando: MemorandoRemessaResumo): void {
-    void this.router.navigate([memorando.id], {
+    void this.router.navigate(['editar-memorando', memorando.id], {
       relativeTo: this.activatedRoute,
     });
   }
@@ -314,21 +315,12 @@ export class MemorandoRemessaListaComponent {
   }
 
   obterResponsaveis(memorando: MemorandoRemessaResumo): string {
-    const responsaveis = memorando.responsible_users ?? [];
-
+    const responsaveis = memorando.primary_responsible_name ?? [];
     if (responsaveis.length === 0) {
       return 'Sem responsável';
     }
-
-    const primeiroResponsavel = responsaveis[0].name || responsaveis[0].username;
-
-    const quantidadeAdicional = responsaveis.length - 1;
-
-    if (quantidadeAdicional <= 0) {
-      return primeiroResponsavel;
-    }
-
-    return `${primeiroResponsavel} ` + `+${quantidadeAdicional}`;
+    const primeiroResponsavel = memorando.primary_responsible_name;
+    return `${primeiroResponsavel} `;
   }
 
   protected consultar(): void {
@@ -345,12 +337,10 @@ export class MemorandoRemessaListaComponent {
           const filtrosAtuais = this.filtros();
 
           return this.service.listar(filtrosAtuais).pipe(
-            map(
-              (response): MemorandoConsultaResult => ({
-                response,
-                error: null,
-              }),
-            ),
+            map((response): MemorandoConsultaResult => ({
+              response,
+              error: null,
+            })),
 
             catchError((error: unknown) =>
               of<MemorandoConsultaResult>({
@@ -473,5 +463,40 @@ export class MemorandoRemessaListaComponent {
     const apiMessage = error.error?.detail || error.error?.message || error.error?.error;
 
     return apiMessage || 'Não foi possível carregar os memorandos.';
+  }
+
+  excluirMemorandos(): void {
+    const idsSelecionados = [...this.selecionados()];
+
+    if (idsSelecionados.length === 0) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.error.set(null);
+
+    const paginaFicaraVazia = this.memorandos().every((memorando) =>
+      this.selecionados().has(memorando.id),
+    );
+
+    forkJoin(idsSelecionados.map((id) => this.service.removerMemorando(id)))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.selecionados.set(new Set<number>());
+          if (paginaFicaraVazia && this.filtros().page > 1) {
+            this.filtros.update((filtrosAtuais) => ({
+              ...filtrosAtuais,
+              page: filtrosAtuais.page - 1,
+            }));
+          }
+
+          this.consultar();
+        },
+        error: (error: unknown) => {
+          this.loading.set(false);
+          this.error.set(this.obterMensagemErro(error));
+        },
+      });
   }
 }

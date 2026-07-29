@@ -25,6 +25,7 @@
     "node_modules\\@angular\\platform-browser\\fesm2022\\animations-async.mjs",
     "node_modules\\@angular\\router\\fesm2022\\router.mjs",
     "node_modules\\@daruix\\hub-auth\\fesm2022\\daruix-hub-auth.mjs",
+    "node_modules\\@daruix\\hub-ui\\fesm2022\\daruix-hub-ui.mjs",
     "node_modules\\@ionic\\angular\\esm2022\\ionic-angular.mjs",
     "node_modules\\@ionic\\angular\\esm2022\\common\\ionic-angular-common.mjs",
     "node_modules\\@ionic\\angular\\esm2022\\standalone\\ionic-angular-standalone.mjs",

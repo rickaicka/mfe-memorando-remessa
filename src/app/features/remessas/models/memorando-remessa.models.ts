@@ -1,8 +1,13 @@
 export type MemorandoRemessaStatus =
   | 'RASCUNHO'
+  | 'PROCESSANDO_ENVIO'
   | 'ENVIADO'
-  | 'EM_ANDAMENTO'
+  | 'FALHA_ENVIO'
   | 'CANCELADO';
+
+export type MemorandoWorkSource = 'ACCESS' | 'HUB';
+
+export type MemorandoOptionType = 'FINALIDADE';
 
 export interface MemorandoResponsavelResumo {
   id: number;
@@ -10,6 +15,8 @@ export interface MemorandoResponsavelResumo {
   username: string;
   name: string;
   email: string;
+  is_primary: boolean;
+  created_at: string;
 }
 
 export interface MemorandoRemessaResumo {
@@ -23,7 +30,7 @@ export interface MemorandoRemessaResumo {
   status: MemorandoRemessaStatus;
   status_label: string;
 
-  work_source: string;
+  work_source: MemorandoWorkSource;
   work_source_label: string;
 
   legacy_work_id: number | null;
@@ -41,7 +48,12 @@ export interface MemorandoRemessaResumo {
   attention_to: string;
   notes: string;
 
-  responsible_users: MemorandoResponsavelResumo[];
+  responsible_users?: MemorandoResponsavelResumo[];
+
+  primary_responsible_name?: string | null;
+
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -82,8 +94,16 @@ export const MEMORANDO_REMESSA_STATUS_OPTIONS: MemorandoRemessaSelectOption<Memo
       label: 'Rascunho',
     },
     {
+      value: 'PROCESSANDO_ENVIO',
+      label: 'Processando envio',
+    },
+    {
       value: 'ENVIADO',
       label: 'Enviado',
+    },
+    {
+      value: 'FALHA_ENVIO',
+      label: 'Falha no envio',
     },
     {
       value: 'CANCELADO',
@@ -107,22 +127,21 @@ export const MEMORANDO_REMESSA_DEFAULT_FILTERS: MemorandoRemessaFiltros = {
 
 export interface MemorandoFormularioOpcao {
   id: number;
+  option_type?: MemorandoOptionType;
+  type_label?: string;
+
   code?: string;
   name?: string;
   label?: string;
   nome?: string;
+
+  description?: string;
+  order?: number;
 }
 
 export interface MemorandoFormularioOpcoes {
-  species?: MemorandoFormularioOpcao[];
-  especies?: MemorandoFormularioOpcao[];
-
   purposes?: MemorandoFormularioOpcao[];
   finalidades?: MemorandoFormularioOpcao[];
-
-  requests?: MemorandoFormularioOpcao[];
-  solicitamos?: MemorandoFormularioOpcao[];
-  solicitacoes?: MemorandoFormularioOpcao[];
 }
 
 export interface MemorandoClienteLegado {
@@ -146,20 +165,11 @@ export interface MemorandoObraLegado {
   work_name: string;
 
   client_name: string;
-  client_document: string;
+  client_document: string | null;
 }
 
 export interface MemorandoCreatePayload {
-  work_source: 'ACCESS';
-
   legacy_work_id: number;
-  legacy_proposal_id: number | null;
-
-  cost_center: string;
-  work_name: string;
-
-  client_name: string;
-  client_document: string;
 
   shipping_date: string;
 
@@ -167,17 +177,41 @@ export interface MemorandoCreatePayload {
   attention_to: string;
   notes: string;
 
-  species_ids: number[];
-  purpose_ids: number[];
-  request_ids: number[];
+  option_ids: number[];
 }
 
-export interface MemorandoArquivoResponse {
+export interface MemorandoOpcaoSelecionada {
   id: number;
-  name?: string;
-  original_name?: string;
-  created_at?: string;
+
+  option_type: MemorandoOptionType;
+  type_label: string;
+
+  code: string;
+  name: string;
+  description: string;
+  order: number;
 }
+
+export interface MemorandoArquivo {
+  id: number;
+  shipment_memo: number;
+
+  original_name: string;
+  content_type: string;
+  size: number;
+
+  uploaded_by: number;
+  uploaded_by_name: string;
+  uploaded_by_username: string;
+
+  download_url: string;
+  created_at: string;
+}
+
+/**
+ * Mantido para não quebrar imports existentes.
+ */
+export type MemorandoArquivoResponse = MemorandoArquivo;
 
 export interface MemorandoUsuarioLocal {
   id?: number;
@@ -187,4 +221,35 @@ export interface MemorandoUsuarioLocal {
   name?: string;
   nome?: string;
   email?: string;
+}
+
+export interface MemorandoRemessaDetalhe
+  extends MemorandoRemessaResumo {
+  recipient_emails: string[];
+  cc_emails: string[];
+
+  responsible_users: MemorandoResponsavelResumo[];
+
+  selected_options: MemorandoOpcaoSelecionada[];
+  attachments: MemorandoArquivo[];
+
+  created_by: number;
+  created_by_name: string;
+
+  updated_by: number;
+  updated_by_name: string;
+
+  sent_by: number | null;
+  sent_by_name: string | null;
+  sent_at: string | null;
+
+  last_send_error: string;
+
+  cancelled_by: number | null;
+  cancelled_by_name: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string;
+
+  created_at: string;
+  updated_at: string;
 }

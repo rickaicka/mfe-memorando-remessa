@@ -1,5 +1,6 @@
 :host {
   --memorando-primary: #e30613;
+  --memorando-primary-hover: #c9000c;
   --memorando-primary-soft: #fff0f1;
 
   --memorando-background: #f7f8fb;
@@ -7,14 +8,15 @@
 
   --memorando-text: #172033;
   --memorando-text-secondary: #667085;
-  --memorando-text-muted: #8a94a6;
+  --memorando-text-muted: #98a2b3;
 
   --memorando-border: #e2e6ee;
-  --memorando-border-strong: #d5dae5;
+  --memorando-border-strong: #d3d9e4;
 
   display: block;
 
   width: 100%;
+  height: 100%;
   min-height: 100%;
 
   color: var(--memorando-text);
@@ -35,16 +37,15 @@ button {
 }
 
 .memorando-lista {
+  display: flex;
+  flex-direction: column;
+
   width: 100%;
   max-width: 960px;
   min-height: 100%;
 
   margin: 0 auto;
-
-  padding:
-    18px
-    12px
-    calc(112px + env(safe-area-inset-bottom));
+  padding: 18px 12px 0;
 
   color: var(--memorando-text);
   background: var(--memorando-background);
@@ -129,48 +130,15 @@ button {
   }
 }
 
-:host {
-  --memorando-primary: #e30613;
-  --memorando-primary-hover: #c9000c;
-  --memorando-background: #f7f8fb;
-  --memorando-surface: #ffffff;
-
-  --memorando-text: #172033;
-  --memorando-text-secondary: #667085;
-  --memorando-text-muted: #98a2b3;
-
-  --memorando-border: #e2e6ee;
-  --memorando-border-strong: #d3d9e4;
-
-  display: block;
-
-  width: 100%;
-  min-height: 100%;
-
-  color: var(--memorando-text);
-  background: var(--memorando-background);
-
-  color-scheme: light;
-}
-
-:host,
-:host *,
-:host *::before,
-:host *::after {
-  box-sizing: border-box;
-}
-
-button {
-  font: inherit;
-}
-
 .memorando-form {
   position: relative;
 
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
 
   width: 100%;
-  min-height: 100%;
+  min-height: 0;
 
   margin: 0;
 
@@ -179,19 +147,17 @@ button {
 
 .memorando-page {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
 
   gap: 10px;
 
   width: 100%;
   max-width: 960px;
-  min-height: 100%;
+  min-height: 0;
 
   margin: 0 auto;
-  padding:
-    12px
-    10px
-    calc(94px + env(safe-area-inset-bottom));
+  padding: 12px 10px;
 }
 
 .form-card {
@@ -326,8 +292,6 @@ ion-select.form-control {
 
 .selection-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-
   width: 100%;
 }
 
@@ -361,40 +325,37 @@ ion-select.form-control {
 }
 
 .checkbox-option {
-  display: flex;
-  align-items: flex-start;
+  --size: 12px;
 
-  gap: 5px;
+  --border-color: #98a2b3;
+  --border-color-checked: var(--memorando-primary);
+  --checkbox-background-checked: var(--memorando-primary);
+  --checkmark-color: #ffffff;
 
   min-width: 0;
+  max-width: 100%;
+
+  color: #344054;
+
+  font-size: 12px;
+  line-height: 1.25;
 
   cursor: pointer;
 
-  ion-checkbox {
-    --size: 12px;
-
-    --border-color: #98a2b3;
-    --border-color-checked: var(--memorando-primary);
-
-    --checkbox-background-checked:
-      var(--memorando-primary);
-
-    --checkmark-color: #ffffff;
-
+  &::part(container) {
     flex: 0 0 auto;
-
     margin-top: 1px;
   }
 
-  span {
-    min-width: 0;
-
-    color: #344054;
-
-    font-size: 8px;
-    line-height: 1.25;
-
+  &::part(label) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
     overflow-wrap: anywhere;
+  }
+
+  span{
+    font-size: var(--drx-font-size-body-sm)
   }
 }
 
@@ -467,6 +428,10 @@ ion-select.form-control {
 
     font-size: 9px;
     font-weight: 600;
+
+    app-hub-icon{
+      margin-right: 8px;
+    }
   }
 
   &--dragging {
@@ -489,8 +454,7 @@ ion-select.form-control {
     28px
     minmax(0, 1fr)
     auto
-    auto
-    28px;
+    auto;
   align-items: center;
 
   gap: 6px;
@@ -620,6 +584,10 @@ ion-select.form-control {
 
 .textarea-wrapper {
   position: relative;
+
+  ion-textarea{
+    font-size: var(--drx-font-size-body-sm);
+  }
 }
 
 .notes-control {
@@ -734,35 +702,45 @@ ion-select.form-control {
   position: sticky;
   bottom: 0;
 
-  z-index: 20;
+  z-index: 50;
 
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
 
+  flex: 0 0 auto;
+
   gap: 7px;
 
-  width: 100%;
+  /*
+   * Faz o footer “escapar” do padding lateral
+   * da .memorando-lista
+   */
+  width: calc(100% + 24px);
+  margin-right: -12px;
+  margin-left: -12px;
+  margin-bottom: 0;
 
-  padding:
-    7px
-    10px
-    calc(7px + env(safe-area-inset-bottom));
+  /*
+   * Remove a folga lateral visual
+   */
+  padding: 8px;
 
   border-top: 1px solid var(--memorando-border);
 
   background: rgb(255 255 255 / 96%);
-
   backdrop-filter: blur(10px);
 
   box-shadow: 0 -6px 18px rgb(16 24 40 / 8%);
 
   ion-button {
     min-height: 42px;
-
     margin: 0;
 
     font-size: 10px;
     font-weight: 600;
+  }
+  app-hub-icon{
+    margin-right: 8px;
   }
 }
 
@@ -772,6 +750,8 @@ ion-select.form-control {
   --border-width: 1px;
 
   --color: var(--memorando-primary);
+
+  margin-left: 10px;
 }
 
 .save-actions {
@@ -779,6 +759,8 @@ ion-select.form-control {
   grid-template-columns: minmax(0, 1fr) 36px;
 
   overflow: hidden;
+
+  margin-right: 10px;
 
   border-radius: 6px;
 
@@ -839,10 +821,7 @@ ion-select.form-control {
 
 @media (min-width: 600px) {
   .memorando-page {
-    padding:
-      20px
-      20px
-      calc(102px + env(safe-area-inset-bottom));
+    padding: 20px;
   }
 
   .general-grid {
@@ -864,9 +843,10 @@ ion-select.form-control {
   }
 
   .form-actions {
-    max-width: 960px;
-
-    margin: 0 auto;
+    width: calc(100% + 24px);
+    margin-right: -12px;
+    margin-left: -12px;
+    padding: 7px 0 0;
   }
 }
 
@@ -936,5 +916,55 @@ ion-select.form-control {
     break-inside: avoid;
 
     box-shadow: none;
+  }
+}
+
+
+.feedback-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+
+  border: 1px solid var(--memorando-border);
+  border-radius: 10px;
+
+  background: var(--memorando-surface);
+
+  text-align: center;
+
+  > ion-icon {
+    color: var(--drx-brand-primary);
+
+    font-size: 38px;
+  }
+
+  h2 {
+    margin: 12px 0 0;
+
+    color: var(--memorando-text);
+
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  p {
+    max-width: 320px;
+
+    margin: 6px 0 16px;
+
+    color: var(--memorando-text-secondary);
+
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  ion-button {
+    --border-color: var(--memorando-primary);
+    --border-radius: 7px;
+    --color: var(--memorando-primary);
+
+    font-size: 12px;
   }
 }
