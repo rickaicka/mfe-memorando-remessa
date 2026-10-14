@@ -567,30 +567,60 @@ export class CadastrarMemorandoRemessas {
     });
 
     this.form.controls.costCenter.setValue('');
+    this.form.controls.workId.disable({
+      emitEvent: false,
+    });
 
     this.works.set([]);
+    this.todasObras.set([]);
+    this.error.set(null);
 
     if (clientId === null) {
-      this.form.controls.workId.disable();
-
       return;
     }
 
     const client = this.clients().find((item) => item.id === clientId);
 
     if (!client) {
-      this.form.controls.workId.disable();
-
       return;
     }
 
     this.loadingWorks.set(true);
 
-    this.works.set(this.filtrarObrasPorCliente(client));
+    this.service
+      .listarObrasLegado(client.name, client.document)
+      .pipe(
+        finalize(() => {
+          this.loadingWorks.set(false);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (response) => {
+          const works = this.extrairResultados(response);
 
-    this.form.controls.workId.enable();
+          this.todasObras.set(works);
+          this.works.set(works);
 
-    this.loadingWorks.set(false);
+          if (works.length > 0) {
+            this.form.controls.workId.enable({
+              emitEvent: false,
+            });
+          } else {
+            this.exibirMensagem('Nenhuma obra encontrada para o cliente selecionado.');
+          }
+        },
+
+        error: (httpError: HttpErrorResponse) => {
+          const message = this.obterMensagemErro(
+            httpError,
+            'Não foi possível carregar as obras do cliente.',
+          );
+
+          this.error.set(message);
+          this.exibirMensagem(message);
+        },
+      });
   }
 
   private onObraAlterada(workId: number | null): void {

@@ -4,7 +4,7 @@ module.exports = withNativeFederation({
   name: 'remessas',
 
   exposes: {
-    './Routes': './src/app/app.routes.ts',
+    './Routes': './src/app/remote-entry/entry.routes.ts',
   },
 
   shared: {
@@ -21,10 +21,5 @@ module.exports = withNativeFederation({
     },
   },
 
-  skip: [
-    'rxjs/ajax',
-    'rxjs/fetch',
-    'rxjs/testing',
-    'rxjs/webSocket',
-  ],
+  skip: ['rxjs/ajax', 'rxjs/fetch', 'rxjs/testing', 'rxjs/webSocket'],
 });

@@ -1,4 +1,4 @@
-name: Publicar imagem Docker do Remessas
+name: Publicar imagem Docker - daruix-mfe-remessas
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: rickaicka/mfe-memorando-remessa
 
 jobs:
   build-and-push:

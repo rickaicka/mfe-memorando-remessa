@@ -1,25 +1,12 @@
 import { Routes } from '@angular/router';
 
-export const REMESSAS_ROUTES: Routes = [
+export const routes: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./features/remessas/pages/remessas-list/remessas-list.component').then(
-        (c) => c.MemorandoRemessaListaComponent,
-      ),
+    loadChildren: () => import('./remote-entry/entry.routes').then((m) => m.REMESSAS_ROUTES),
   },
   {
-    path: 'novo-memorando',
-    loadComponent: () =>
-      import('./features/remessas/pages/cadastrar-memorando-remessas/cadastrar-memorando-remessas').then(
-        (c) => c.CadastrarMemorandoRemessas,
-      ),
-  },
-  {
-    path: 'editar-memorando/:id',
-    loadComponent: () =>
-      import('./features/remessas/pages/cadastrar-memorando-remessas/cadastrar-memorando-remessas').then(
-        (c) => c.CadastrarMemorandoRemessas,
-      ),
+    path: '**',
+    redirectTo: '',
   },
 ];
