@@ -65,32 +65,66 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
     permissions:
       contents: read
 
     steps:
+      - name: Validar configuração do deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_KNOWN_HOSTS; do
+            value="${!name}"
+            if [[ -z "${value//[[:space:]]/}" ]]; then
+              echo "::error::Secret $name ausente ou vazio. Configure em Settings > Secrets and variables > Actions ou no environment production deste repositório."
+              failed=1
+            fi
+          done
+          if (( failed )); then
+            exit 1
+          fi
+          if [[ "$VPS_USER" == *[[:space:]@/]* || "$VPS_USER" == -* ]]; then
+            echo '::error::VPS_USER inválido. Informe somente o usuário SSH, por exemplo ricardo, sem espaços ou @host.'
+            exit 1
+          fi
+          if [[ "$VPS_HOST" == *[[:space:]@/]* || "$VPS_HOST" == -* ]]; then
+            echo '::error::VPS_HOST inválido. Informe somente o IP ou hostname, sem usuário, protocolo, porta ou espaços. Para IPv6, use o endereço sem colchetes.'
+            exit 1
+          fi
+          if [[ ! "$VPS_PORT" =~ ^[0-9]{1,5}$ ]]; then
+            echo '::error::A variável VPS_PORT deve conter uma porta numérica entre 1 e 65535.'
+            exit 1
+          fi
+          if (( 10#$VPS_PORT < 1 || 10#$VPS_PORT > 65535 )); then
+            echo '::error::A variável VPS_PORT deve estar entre 1 e 65535.'
+            exit 1
+          fi
+
       - name: Configurar SSH
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        shell: bash
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$VPS_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Atualizar remessas na VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+        shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+          ssh -T -i ~/.ssh/id_ed25519 -p "$VPS_PORT" -l "$VPS_USER" \
             -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+            -o IdentitiesOnly=yes -o ConnectTimeout=20 \
+            -- "$VPS_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
           cd /opt/daruix-hub
           # A VPS precisa ter acesso pré-configurado ao GHCR, caso a imagem seja privada.
