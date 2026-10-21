@@ -10,6 +10,9 @@ export const REMESSAS_ROUTES: Routes = [
   {
     path: 'lista',
     canActivate: [hubPermissionGuard],
+    data: {
+      permission: 'shipment_memo.view',
+    },
     loadComponent: () =>
       import('../features/remessas/pages/remessas-list/remessas-list.component').then(
         (m) => m.MemorandoRemessaListaComponent,
@@ -18,6 +21,9 @@ export const REMESSAS_ROUTES: Routes = [
   {
     path: 'novo-memorando',
     canActivate: [hubPermissionGuard],
+    data: {
+      permission: 'shipment_memo.view',
+    },
     loadComponent: () =>
       import('../features/remessas/pages/cadastrar-memorando-remessas/cadastrar-memorando-remessas').then(
         (m) => m.CadastrarMemorandoRemessas,
@@ -25,6 +31,10 @@ export const REMESSAS_ROUTES: Routes = [
   },
   {
     path: 'editar-memorando/:id',
+    canActivate: [hubPermissionGuard],
+    data: {
+      permission: 'shipment_memo.view',
+    },
     loadComponent: () =>
       import('../features/remessas/pages/cadastrar-memorando-remessas/cadastrar-memorando-remessas').then(
         (m) => m.CadastrarMemorandoRemessas,
