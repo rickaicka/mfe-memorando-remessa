@@ -65,17 +65,40 @@
             />
           </label>
 
-          <label class="form-field">
-            <span>Centro de Custo</span>
+          <section class="pc-search" aria-label="Centro de Custo">
+            <label class="form-field">
+              <span>Centro de Custo</span>
+              <ion-input class="form-control" mode="md" fill="outline"
+                aria-label="Buscar Centro de Custo pelo PC" placeholder="Digite pelo menos 3 caracteres do PC"
+                [value]="pcSearch()" [disabled]="loadingOptions() || loadingMemorando() || processing()"
+                (ionInput)="onPCSearch($event)" />
+            </label>
+<!--            <div class="pc-search__feedback" role="status" aria-live="polite">-->
+<!--              @if (loadingWorks()) {-->
+<!--                <ion-spinner name="crescent" /> <span>Buscando PC...</span>-->
+<!--              } @else if (pcSearchError()) {-->
+<!--                <span>{{ pcSearchError() }}</span>-->
+<!--              } @else if (pcSearchDone() && works().length === 0) {-->
+<!--                <span>Nenhuma obra encontrada para o PC informado.</span>-->
+<!--              } @else if (!selectedWork()) {-->
+<!--                <span>Busque o PC e selecione a obra para preencher os dados do memorando.</span>-->
+<!--              }-->
+<!--            </div>-->
+          </section>
 
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              formControlName="costCenter"
-              placeholder="Preenchido pela obra"
-            />
-          </label>
+          @if (works().length > 0) {
+              <ul class="pc-search__results" aria-label="PCs encontrados">
+                @for (work of works(); track work.legacy_work_id) {
+                  <li>
+                    <button type="button" class="pc-search__result" (click)="selecionarPC(work)"
+                      [disabled]="processing() || loadingMemorando()">
+                      <strong>{{ work.cost_center }} — {{ work.work_name }}</strong>
+                      <span>{{ work.client_name }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+          }
 
           <label class="form-field">
             <span>Data de Envio</span>
@@ -103,58 +126,14 @@
 
           <label class="form-field form-field--client">
             <span>Cliente</span>
-
-            <ion-select
-              class="form-control"
-              mode="md"
-              fill="outline"
-              interface="popover"
-              formControlName="clientId"
-              [placeholder]="
-                loadingOptions()
-                  ? 'Carregando clientes...'
-                  : 'Selecione o cliente'
-              "
-            >
-              @for (
-                client of clients();
-                track client.id
-                ) {
-                <ion-select-option
-                  [value]="client.id"
-                >
-                  {{ client.name }}
-                </ion-select-option>
-              }
-            </ion-select>
+            <ion-input class="form-control" mode="md" fill="outline"
+              formControlName="clientName" placeholder="Preenchido ao selecionar o PC" />
           </label>
 
           <label class="form-field">
             <span>Obra</span>
-
-            <ion-select
-              class="form-control"
-              mode="md"
-              fill="outline"
-              interface="popover"
-              formControlName="workId"
-              [placeholder]="
-                loadingWorks()
-                  ? 'Carregando obras...'
-                  : 'Selecione a obra'
-              "
-            >
-              @for (
-                work of works();
-                track work.legacy_work_id
-                ) {
-                <ion-select-option
-                  [value]="work.legacy_work_id"
-                >
-                  {{ work.work_name }}
-                </ion-select-option>
-              }
-            </ion-select>
+            <ion-input class="form-control" mode="md" fill="outline"
+              formControlName="workName" placeholder="Preenchida ao selecionar o PC" />
           </label>
 
           <label class="form-field">

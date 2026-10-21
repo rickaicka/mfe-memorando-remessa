@@ -100,6 +100,15 @@ export class MemorandoRemessaService {
     );
   }
 
+  buscarObrasPorPC(
+    search: string,
+  ): Observable<MemorandoObraLegado[] | PaginatedResponse<MemorandoObraLegado>> {
+    const params = new HttpParams().set('search', search.trim()).set('limit', '50');
+    return this.http.get<MemorandoObraLegado[] | PaginatedResponse<MemorandoObraLegado>>(
+      `${this.baseUrl}/legado/obras/`, { params },
+    );
+  }
+
   detalharObraLegado(legacyWorkId: number): Observable<MemorandoObraLegado> {
     return this.http.get<MemorandoObraLegado>(`${this.baseUrl}/legado/obras/${legacyWorkId}/`);
   }

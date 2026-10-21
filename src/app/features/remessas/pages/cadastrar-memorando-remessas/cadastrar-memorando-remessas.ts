@@ -23,8 +23,6 @@ import {
   IonCheckbox,
   IonIcon,
   IonInput,
-  IonSelect,
-  IonSelectOption,
   IonSpinner,
   IonTextarea,
   IonToast,
@@ -46,6 +44,7 @@ import {
 } from 'ionicons/icons';
 
 import {
+  catchError,
   concatMap,
   finalize,
   forkJoin,
@@ -53,14 +52,15 @@ import {
   map,
   Observable,
   of,
+  Subject,
   switchMap,
+  timer,
   tap,
   toArray,
 } from 'rxjs';
 
 import {
   MemorandoArquivo,
-  MemorandoClienteLegado,
   MemorandoCreatePayload,
   MemorandoFormularioOpcao,
   MemorandoFormularioOpcoes,
@@ -75,12 +75,6 @@ import { MemorandoRemessaService } from '../../services/memorando-remessa.servic
 interface OpcaoFormulario {
   id: number;
   label: string;
-}
-
-interface ClienteFormulario {
-  id: number;
-  name: string;
-  document: string;
 }
 
 interface ArquivoPendente {
@@ -101,8 +95,6 @@ interface ArquivoPendente {
     IonCheckbox,
     IonIcon,
     IonInput,
-    IonSelect,
-    IonSelectOption,
     IonSpinner,
     IonTextarea,
     IonToast,
@@ -136,7 +128,11 @@ export class CadastrarMemorandoRemessas {
   @ViewChild('notesTextarea')
   private notesTextarea?: IonTextarea;
 
-  private readonly todasObras = signal<MemorandoObraLegado[]>([]);
+  private readonly buscaPC = new Subject<string>();
+  readonly pcSearch = signal('');
+  readonly pcSearchError = signal<string | null>(null);
+  readonly pcSearchDone = signal(false);
+  readonly selectedWork = signal<MemorandoObraLegado | null>(null);
 
   readonly loadingOptions = signal<boolean>(true);
 
@@ -155,8 +151,6 @@ export class CadastrarMemorandoRemessas {
   readonly isDragging = signal<boolean>(false);
 
   readonly purposes = signal<OpcaoFormulario[]>([]);
-
-  readonly clients = signal<ClienteFormulario[]>([]);
 
   readonly works = signal<MemorandoObraLegado[]>([]);
 
@@ -212,15 +206,10 @@ export class CadastrarMemorandoRemessas {
 
     shippingDate: [this.obterDataAtual(), Validators.required],
 
-    clientId: [null as number | null, Validators.required],
+    clientName: [{ value: '', disabled: true }],
+    workName: [{ value: '', disabled: true }],
 
-    workId: [
-      {
-        value: null as number | null,
-        disabled: true,
-      },
-      Validators.required,
-    ],
+    workId: [null as number | null, Validators.required],
 
     subject: [''],
 
@@ -453,34 +442,9 @@ export class CadastrarMemorandoRemessas {
 
     forkJoin({
       options: this.service.obterOpcoesFormulario(),
-
-      clients: this.service.listarClientesLegado(),
-
       memorando: memorandoId === null ? of(null) : this.service.obterPorId(memorandoId),
     })
       .pipe(
-        switchMap(({ options, clients, memorando }) => {
-          const clientName = memorando?.client_name?.trim();
-
-          if (!memorando || !clientName) {
-            return of({
-              options,
-              clients,
-              memorando,
-              works: [] as MemorandoObraLegado[],
-            });
-          }
-
-          return this.service.listarObrasLegado(clientName, memorando.client_document ?? '').pipe(
-            map((worksResponse) => ({
-              options,
-              clients,
-              memorando,
-              works: this.extrairResultados(worksResponse),
-            })),
-          );
-        }),
-
         finalize(() => {
           this.loadingOptions.set(false);
           this.loadingMemorando.set(false);
@@ -489,12 +453,8 @@ export class CadastrarMemorandoRemessas {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ options, clients, works, memorando }) => {
+        next: ({ options, memorando }) => {
           this.preencherOpcoes(options);
-
-          this.clients.set(this.normalizarClientes(this.extrairResultados(clients)));
-
-          this.todasObras.set(works);
 
           if (memorando) {
             this.preencherFormularioEdicao(memorando);
@@ -524,17 +484,54 @@ export class CadastrarMemorandoRemessas {
   }
 
   private configurarAlteracoesFormulario(): void {
-    this.form.controls.clientId.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((clientId) => {
-        this.onClienteAlterado(clientId);
-      });
+    this.buscaPC.pipe(
+      switchMap((query) => {
+        this.pcSearchError.set(null);
+        this.pcSearchDone.set(false);
+        this.works.set([]);
+        if (query.length < 3) {
+          this.loadingWorks.set(false);
+          return of([] as MemorandoObraLegado[]);
+        }
+        this.loadingWorks.set(true);
+        return timer(300).pipe(
+          switchMap(() => this.service.buscarObrasPorPC(query)),
+          map((response) => this.extrairResultados(response)),
+          tap(() => this.pcSearchDone.set(true)),
+          catchError((httpError: HttpErrorResponse) => {
+            this.pcSearchError.set(this.obterMensagemErro(
+              httpError, 'Não foi possível buscar o PC. Digite novamente para tentar de novo.',
+            ));
+            return of([] as MemorandoObraLegado[]);
+          }),
+          finalize(() => this.loadingWorks.set(false)),
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((works) => this.works.set(works));
+  }
 
-    this.form.controls.workId.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((workId) => {
-        this.onObraAlterada(workId);
-      });
+  onPCSearch(event: Event): void {
+    const value = (event as CustomEvent<{ value?: string | null }>).detail?.value ?? '';
+    this.pcSearch.set(value);
+    this.selectedWork.set(null);
+    this.form.patchValue({ workId: null, costCenter: '', clientName: '', workName: '' });
+    this.form.controls.workId.markAsDirty();
+    this.buscaPC.next(value.trim());
+  }
+
+  selecionarPC(work: MemorandoObraLegado): void {
+    // Cancela uma consulta pendente antes de guardar a seleção.
+    this.buscaPC.next('');
+    this.selectedWork.set(work);
+    this.pcSearch.set(work.cost_center);
+    this.form.patchValue({
+      workId: work.legacy_work_id,
+      costCenter: work.cost_center,
+      clientName: work.client_name,
+      workName: work.work_name,
+    });
+    this.form.controls.workId.markAsDirty();
   }
 
   private preencherResponsavelLogado(): void {
@@ -561,80 +558,6 @@ export class CadastrarMemorandoRemessas {
     this.purposes.set(this.normalizarOpcoes(response.purposes ?? response.finalidades ?? []));
   }
 
-  private onClienteAlterado(clientId: number | null): void {
-    this.form.controls.workId.reset(null, {
-      emitEvent: false,
-    });
-
-    this.form.controls.costCenter.setValue('');
-    this.form.controls.workId.disable({
-      emitEvent: false,
-    });
-
-    this.works.set([]);
-    this.todasObras.set([]);
-    this.error.set(null);
-
-    if (clientId === null) {
-      return;
-    }
-
-    const client = this.clients().find((item) => item.id === clientId);
-
-    if (!client) {
-      return;
-    }
-
-    this.loadingWorks.set(true);
-
-    this.service
-      .listarObrasLegado(client.name, client.document)
-      .pipe(
-        finalize(() => {
-          this.loadingWorks.set(false);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (response) => {
-          const works = this.extrairResultados(response);
-
-          this.todasObras.set(works);
-          this.works.set(works);
-
-          if (works.length > 0) {
-            this.form.controls.workId.enable({
-              emitEvent: false,
-            });
-          } else {
-            this.exibirMensagem('Nenhuma obra encontrada para o cliente selecionado.');
-          }
-        },
-
-        error: (httpError: HttpErrorResponse) => {
-          const message = this.obterMensagemErro(
-            httpError,
-            'Não foi possível carregar as obras do cliente.',
-          );
-
-          this.error.set(message);
-          this.exibirMensagem(message);
-        },
-      });
-  }
-
-  private onObraAlterada(workId: number | null): void {
-    if (workId === null) {
-      this.form.controls.costCenter.setValue('');
-
-      return;
-    }
-
-    const work = this.works().find((item) => item.legacy_work_id === workId);
-
-    this.form.controls.costCenter.setValue(work?.cost_center ?? '');
-  }
-
   private persistirMemorando(shouldSend: boolean): void {
     if (!this.validarFormulario()) {
       return;
@@ -645,7 +568,7 @@ export class CadastrarMemorandoRemessas {
     try {
       payload = this.criarPayload();
     } catch {
-      this.exibirMensagem('Selecione o cliente e a obra.');
+      //this.exibirMensagem('Busque o PC e selecione a obra correspondente.');
 
       return;
     }
@@ -782,16 +705,9 @@ export class CadastrarMemorandoRemessas {
   private criarPayload(): MemorandoCreatePayload {
     const raw = this.form.getRawValue();
 
-    if (raw.clientId === null || raw.workId === null) {
-      throw new Error('Cliente e obra obrigatórios.');
-    }
-
-    const client = this.clients().find((item) => item.id === raw.clientId);
-
-    const work = this.works().find((item) => item.legacy_work_id === raw.workId);
-
-    if (!client || !work) {
-      throw new Error('Cliente ou obra inválidos.');
+    const work = this.selectedWork();
+    if (!work || raw.workId !== work.legacy_work_id) {
+      throw new Error('Selecione um PC válido.');
     }
 
     return {
@@ -928,39 +844,6 @@ export class CadastrarMemorandoRemessas {
     }));
   }
 
-  private normalizarClientes(clients: MemorandoClienteLegado[]): ClienteFormulario[] {
-    const uniqueClients = new Map<string, ClienteFormulario>();
-
-    clients.forEach((client, index) => {
-      const normalizedClient: ClienteFormulario = {
-        id: client.id ?? client.legacy_id ?? client.legacy_client_id ?? index + 1,
-
-        name: (client.name ?? client.nome ?? client.client_name ?? '').trim(),
-
-        document: (client.document ?? client.client_document ?? '').trim(),
-      };
-
-      if (!normalizedClient.name) {
-        return;
-      }
-
-      const key = this.normalizarTexto(normalizedClient.name);
-      const existingClient = uniqueClients.get(key);
-
-      if (!existingClient) {
-        uniqueClients.set(key, normalizedClient);
-
-        return;
-      }
-
-      if (!existingClient.document && normalizedClient.document) {
-        existingClient.document = normalizedClient.document;
-      }
-    });
-
-    return Array.from(uniqueClients.values());
-  }
-
   private extrairResultados<T>(response: T[] | PaginatedResponse<T>): T[] {
     if (Array.isArray(response)) {
       return response;
@@ -975,10 +858,6 @@ export class CadastrarMemorandoRemessas {
       .replace(/[\u0300-\u036f]/g, '')
       .trim()
       .toUpperCase();
-  }
-
-  private somenteNumeros(value: string): string {
-    return value.replace(/\D/g, '');
   }
 
   private obterDataAtual(): string {
@@ -1074,91 +953,26 @@ export class CadastrarMemorandoRemessas {
 
     this.existingAttachments.set(memorando.attachments ?? []);
 
-    const client = this.localizarClienteDoMemorando(memorando);
-
-    if (!client) {
-      const message = 'Não foi possível localizar o cliente deste memorando.';
-
-      this.error.set(message);
-      this.exibirMensagem(message);
-
-      return;
+    if (memorando.legacy_work_id !== null) {
+      // Preserva o vínculo e os dados já salvos, sem depender da busca de clientes.
+      const work: MemorandoObraLegado = {
+        legacy_work_id: memorando.legacy_work_id,
+        legacy_proposal_id: memorando.legacy_proposal_id,
+        cost_center: memorando.cost_center,
+        work_name: memorando.work_name,
+        client_name: memorando.client_name,
+        client_document: memorando.client_document,
+      };
+      this.selectedWork.set(work);
+      this.pcSearch.set(work.cost_center);
+      this.form.patchValue({
+        workId: work.legacy_work_id,
+        clientName: work.client_name,
+        workName: work.work_name,
+      }, { emitEvent: false });
     }
-
-    const clientWorks = this.filtrarObrasPorCliente(client);
-
-    const selectedWork = clientWorks.find(
-      (work) => work.legacy_work_id === memorando.legacy_work_id,
-    );
-
-    if (!selectedWork) {
-      const message = 'Não foi possível localizar a obra deste memorando.';
-
-      this.error.set(message);
-      this.exibirMensagem(message);
-
-      return;
-    }
-
-    this.works.set(clientWorks);
-
-    this.form.controls.workId.enable({
-      emitEvent: false,
-    });
-
-    this.form.patchValue(
-      {
-        clientId: client.id,
-
-        workId: selectedWork.legacy_work_id,
-
-        costCenter: memorando.cost_center,
-      },
-      {
-        emitEvent: false,
-      },
-    );
-
     this.form.markAsPristine();
     this.form.markAsUntouched();
-  }
-
-  private localizarClienteDoMemorando(
-    memorando: MemorandoRemessaDetalhe,
-  ): ClienteFormulario | undefined {
-    const document = this.somenteNumeros(memorando.client_document ?? '');
-
-    const name = this.normalizarTexto(memorando.client_name ?? '');
-
-    return this.clients().find((client) => {
-      const clientDocument = this.somenteNumeros(client.document);
-
-      const clientName = this.normalizarTexto(client.name);
-
-      const sameDocument = Boolean(document) && document === clientDocument;
-
-      const sameName = Boolean(name) && name === clientName;
-
-      return sameDocument || sameName;
-    });
-  }
-
-  private filtrarObrasPorCliente(client: ClienteFormulario): MemorandoObraLegado[] {
-    const clientName = this.normalizarTexto(client.name);
-
-    const clientDocument = this.somenteNumeros(client.document);
-
-    return this.todasObras().filter((work) => {
-      const workClientName = this.normalizarTexto(work.client_name ?? '');
-
-      const workDocument = this.somenteNumeros(work.client_document ?? '');
-
-      const sameDocument = Boolean(clientDocument) && clientDocument === workDocument;
-
-      const sameName = Boolean(clientName) && clientName === workClientName;
-
-      return sameDocument || sameName;
-    });
   }
 
   private obterMensagemErro(httpError: HttpErrorResponse, fallback: string): string {

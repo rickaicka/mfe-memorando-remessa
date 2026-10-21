@@ -213,6 +213,7 @@ button {
 
 .general-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 
   gap: 10px 8px;
@@ -257,6 +258,8 @@ button {
   --padding-end: 8px;
 
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 38px;
 
   font-size: 10px;
@@ -967,4 +970,123 @@ ion-select.form-control {
 
     font-size: 12px;
   }
+}
+
+/* A lista ocupa uma linha própria e participa do fluxo do formulário. */
+.general-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pc-search {
+  min-width: 0;
+  margin: 0;
+}
+
+.pc-search > .form-field {
+  width: 100%;
+}
+
+.pc-search__feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: var(--memorando-text-secondary);
+}
+
+.pc-search__feedback ion-spinner {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.pc-search__results {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--memorando-border);
+  border-radius: 8px;
+  background: var(--memorando-surface);
+}
+
+.pc-search__results > li {
+  position: static;
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.pc-search__results > li + li {
+  border-top: 1px solid var(--memorando-border);
+}
+
+.pc-search__result {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  border: 0;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: var(--memorando-surface);
+  color: var(--memorando-text);
+  font: inherit;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pc-search__result > strong,
+.pc-search__result > span {
+  position: static;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pc-search__result > strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pc-search__result > span {
+  color: var(--memorando-text-secondary);
+  font-size: 11px;
+}
+
+.pc-search__result:hover,
+.pc-search__result:focus-visible {
+  background: var(--memorando-primary-soft);
+}
+
+.pc-search__result:focus-visible {
+  outline: 2px solid var(--memorando-primary);
+  outline-offset: -2px;
 }
