@@ -171,7 +171,7 @@ export class MemorandoRemessaListaComponent {
 
   novoMemorando(): void {
     void this.router.navigate(['novo-memorando'], {
-      relativeTo: this.activatedRoute,
+      relativeTo: this.activatedRoute.parent,
     });
   }
 
@@ -270,7 +270,7 @@ export class MemorandoRemessaListaComponent {
 
   abrirMemorando(memorando: MemorandoRemessaResumo): void {
     void this.router.navigate(['editar-memorando', memorando.id], {
-      relativeTo: this.activatedRoute,
+      relativeTo: this.activatedRoute.parent,
     });
   }
 

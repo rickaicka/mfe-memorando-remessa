@@ -507,8 +507,8 @@ export class CadastrarMemorandoRemessas {
           if (memorandoId !== null && httpError.status === 404) {
             fallback = 'O memorando informado não foi encontrado.';
 
-            void this.router.navigate(['../'], {
-              relativeTo: this.activatedRoute,
+            void this.router.navigate(['lista'], {
+              relativeTo: this.activatedRoute.parent,
               replaceUrl: true,
             });
           } else if (httpError.status === 403) {
@@ -712,8 +712,8 @@ export class CadastrarMemorandoRemessas {
           this.exibirMensagem(message);
 
           if (wasCreated) {
-            void this.router.navigate(['../editar-memorando', memorando.id], {
-              relativeTo: this.activatedRoute,
+            void this.router.navigate(['editar-memorando', memorando.id], {
+              relativeTo: this.activatedRoute.parent,
 
               replaceUrl: true,
             });
@@ -1026,8 +1026,8 @@ export class CadastrarMemorandoRemessas {
 
       this.exibirMensagem('O identificador do memorando é inválido.');
 
-      void this.router.navigate(['../'], {
-        relativeTo: this.activatedRoute,
+      void this.router.navigate(['lista'], {
+        relativeTo: this.activatedRoute.parent,
 
         replaceUrl: true,
       });
