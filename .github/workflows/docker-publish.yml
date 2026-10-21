@@ -16,6 +16,9 @@ jobs:
   build-and-push:
     name: Build e publicação
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-remessas
+      cancel-in-progress: false
 
     permissions:
       contents: read
@@ -55,3 +58,61 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-vps:
+    name: Deploy VPS - remessas
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Atualizar remessas na VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/daruix-hub
+          # A VPS precisa ter acesso pré-configurado ao GHCR, caso a imagem seja privada.
+          docker compose -f compose.yml -f compose.source.yml pull remessas
+          docker compose -f compose.yml -f compose.source.yml up -d --no-deps --force-recreate remessas
+          container_id="$(docker compose -f compose.yml -f compose.source.yml ps -q remessas)"
+          test -n "$container_id"
+          for attempt in $(seq 1 30); do
+            status="$(docker inspect -f '{{.State.Status}}' "$container_id")"
+            health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id")"
+            if [ "$status" = running ] && { [ "$health" = healthy ] || [ "$health" = none ]; }; then
+              echo 'Deploy remessas concluído: container em execução, health='"$health"
+              exit 0
+            fi
+            if [ "$status" != running ] || [ "$health" = unhealthy ]; then
+              docker logs --tail 80 "$container_id" || true
+              echo 'Deploy remessas falhou: status='"$status"' health='"$health" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs --tail 80 "$container_id" || true
+          echo 'Timeout aguardando healthcheck do remessas' >&2
+          exit 1
+          REMOTE
