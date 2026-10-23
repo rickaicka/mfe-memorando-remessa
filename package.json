@@ -10,6 +10,7 @@
     "build:development": "ng build --configuration=development",
     "build:emulator": "ng build --configuration=emulator",
     "build:device": "ng build --configuration=device",
+    "build:mobile": "ng build --configuration=mobile",
     "watch": "ng build --watch --configuration=development",
     "test": "ng test"
   },

@@ -36,6 +36,9 @@
             "device": {
               "target": "daruix-mfe-remessas:esbuild:device",
               "dev": true
+            },
+            "mobile": {
+              "target": "daruix-mfe-remessas:esbuild:production,mobile"
             }
           },
           "defaultConfiguration": "production"
@@ -143,6 +146,14 @@
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
+            },
+            "mobile": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.mobile.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
