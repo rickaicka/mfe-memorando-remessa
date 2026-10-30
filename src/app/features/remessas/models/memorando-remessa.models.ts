@@ -178,6 +178,8 @@ export interface MemorandoCreatePayload {
   notes: string;
 
   option_ids: number[];
+  received_by_name: string;
+  received_at: string | null;
 }
 
 export interface MemorandoOpcaoSelecionada {
@@ -232,6 +234,9 @@ export interface MemorandoRemessaDetalhe
 
   selected_options: MemorandoOpcaoSelecionada[];
   attachments: MemorandoArquivo[];
+  invoices: MemorandoNotaFiscal[];
+  received_by_name: string;
+  received_at: string | null;
 
   created_by: number;
   created_by_name: string;
@@ -252,4 +257,21 @@ export interface MemorandoRemessaDetalhe
 
   created_at: string;
   updated_at: string;
+}
+
+export interface MemorandoNotaFiscal {
+  id?: number;
+  number: string;
+  series: string;
+  issuer_name: string;
+  trade_name: string;
+  issuer_document: string;
+  total_value: string | null;
+  access_key: string;
+  description: string;
+  source: 'XML' | 'OCR' | 'MANUAL';
+}
+export interface LeituraNotaFiscal extends MemorandoNotaFiscal {
+  warnings: string[];
+  raw_text?: string;
 }

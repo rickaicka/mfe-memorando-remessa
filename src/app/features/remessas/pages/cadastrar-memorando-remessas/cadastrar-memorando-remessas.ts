@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { Location } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 import {
   ChangeDetectionStrategy,
+  ElementRef,
   Component,
   computed,
   DestroyRef,
@@ -19,20 +21,17 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import {
-  IonButton,
-  IonCheckbox,
-  IonIcon,
   IonInput,
   IonSpinner,
   IonTextarea,
   IonToast,
+  IonButton,
+  IonActionSheet,
 } from '@ionic/angular/standalone';
 
 import { HUB_USER_KEY } from '@daruix/hub-auth';
 
-import { HubIconComponent } from '@daruix/hub-ui';
-
-import { LucideArrowLeft } from '@lucide/angular';
+import { ButtonComponent, CardSquareComponent, HubIconComponent, SaveFooterComponent } from '@daruix/hub-ui';
 
 import { addIcons } from 'ionicons';
 
@@ -41,6 +40,9 @@ import {
   attachOutline,
   chatboxOutline,
   documentTextOutline,
+  cameraOutline,
+  addOutline,
+  personOutline,
 } from 'ionicons/icons';
 
 import {
@@ -61,6 +63,7 @@ import {
 
 import {
   MemorandoArquivo,
+  MemorandoNotaFiscal,
   MemorandoCreatePayload,
   MemorandoFormularioOpcao,
   MemorandoFormularioOpcoes,
@@ -90,17 +93,16 @@ interface ArquivoPendente {
   standalone: true,
   imports: [
     ReactiveFormsModule,
-
-    IonButton,
-    IonCheckbox,
-    IonIcon,
     IonInput,
     IonSpinner,
     IonTextarea,
     IonToast,
-
-    LucideArrowLeft,
+    IonButton,
+    IonActionSheet,
     HubIconComponent,
+    ButtonComponent,
+    CardSquareComponent,
+    SaveFooterComponent,
   ],
   templateUrl: './cadastrar-memorando-remessas.html',
   styleUrl: './cadastrar-memorando-remessas.scss',
@@ -115,6 +117,8 @@ export class CadastrarMemorandoRemessas {
 
   private readonly service = inject(MemorandoRemessaService);
 
+  private readonly sanitizer = inject(DomSanitizer);
+
   private readonly router = inject(Router);
 
   private readonly activatedRoute = inject(ActivatedRoute);
@@ -124,6 +128,36 @@ export class CadastrarMemorandoRemessas {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly hubUserKey = inject(HUB_USER_KEY);
+
+  @ViewChild('invoiceCamera') private invoiceCameraInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('invoiceGallery') private invoiceGalleryInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('invoiceFile') private invoiceFileInput?: ElementRef<HTMLInputElement>;
+
+  readonly menuSalvarAberto = signal(false);
+  get opcoesMenuSalvar() {
+    return [
+      { text: 'Salvar memorando', icon: 'save-outline', handler: () => this.salvar() },
+      { text: 'Gerar PDF / Imprimir', icon: 'print-outline', disabled: !this.isEditing(), handler: () => this.imprimir() },
+      { text: 'Cancelar', role: 'cancel', icon: 'close-outline' },
+    ];
+  }
+
+  abrirMenuSalvar(): void {
+    if (this.processing() || this.loadingOptions() || this.loadingMemorando()) return;
+    this.menuSalvarAberto.set(true);
+  }
+
+  readonly menuNotaAberto = signal(false);
+  readonly opcoesMenuNota = [
+    { text: 'Tirar foto', icon: 'camera-outline', handler: () => this.invoiceCameraInput?.nativeElement.click() },
+    { text: 'Escolher da galeria', icon: 'images-outline', handler: () => this.invoiceGalleryInput?.nativeElement.click() },
+    { text: 'Selecionar arquivo (XML/PDF)', icon: 'document-text-outline', handler: () => this.invoiceFileInput?.nativeElement.click() },
+    { text: 'Cancelar', role: 'cancel', icon: 'close-outline' },
+  ];
+
+  abrirMenuNota(): void {
+    if (!this.readingNote() && !this.processing()) this.menuNotaAberto.set(true);
+  }
 
   @ViewChild('notesTextarea')
   private notesTextarea?: IonTextarea;
@@ -177,6 +211,8 @@ export class CadastrarMemorandoRemessas {
    */
   readonly existingAttachments = signal<MemorandoArquivo[]>([]);
 
+  readonly notas = signal<MemorandoNotaFiscal[]>([]);
+  readonly readingNote = signal(false);
   readonly memorandoId = signal<number | null>(null);
 
   readonly isEditing = computed<boolean>(() => this.memorandoId() !== null);
@@ -211,11 +247,9 @@ export class CadastrarMemorandoRemessas {
 
     workId: [null as number | null, Validators.required],
 
-    subject: [''],
-
-    attentionTo: [''],
-
     notes: ['', Validators.maxLength(1000)],
+    receivedByName: ['', Validators.required],
+    receivedAt: [this.obterDataAtual()],
   });
 
   constructor() {
@@ -224,6 +258,9 @@ export class CadastrarMemorandoRemessas {
       attachOutline,
       chatboxOutline,
       documentTextOutline,
+      cameraOutline,
+      addOutline,
+      personOutline,
     });
 
     this.preencherResponsavelLogado();
@@ -236,6 +273,7 @@ export class CadastrarMemorandoRemessas {
     }
 
     this.destroyRef.onDestroy(() => {
+      this.liberarPdf();
       for (const attachment of this.pendingAttachments()) {
         URL.revokeObjectURL(attachment.localUrl);
       }
@@ -256,6 +294,127 @@ export class CadastrarMemorandoRemessas {
 
   enviar(): void {
     this.persistirMemorando(true);
+  }
+
+  capturarNota(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    target.value = '';
+    if (!file) return;
+    this.readingNote.set(true);
+    this.service.lerNota(file).pipe(finalize(() => this.readingNote.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          const { warnings, raw_text, id, ...note } = result;
+          this.notas.update(items => [...items, note]);
+          this.exibirMensagem(warnings?.join(' ') || 'Confira os dados extraídos antes de salvar.');
+        },
+        error: (err: HttpErrorResponse) => this.exibirMensagem(this.obterMensagemErro(err, 'Não foi possível ler a nota.')),
+      });
+  }
+
+  adicionarNota(): void {
+    this.notas.update(items => [...items, {
+      number: '', series: '', issuer_name: '', trade_name: '', issuer_document: '',
+      total_value: null, access_key: '', description: '', source: 'MANUAL',
+    }]);
+  }
+
+  alterarNota(index: number, field: keyof MemorandoNotaFiscal, value: string): void {
+    this.notas.update(items => items.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  }
+
+  removerNota(index: number): void {
+    this.notas.update(items => items.filter((_, i) => i !== index));
+  }
+
+  /** Abre um visualizador real, com download alternativo se o PDF não renderizar. */
+  /** O visualizador pertence ao próprio MFE: nenhum pop-up ou aba about:blank. */
+  readonly pdfAberto = signal(false);
+  readonly pdfCarregando = signal(false);
+  readonly pdfErro = signal<string | null>(null);
+  readonly pdfSeguro = signal<SafeResourceUrl | null>(null);
+  readonly pdfNome = signal('memorando.pdf');
+  private pdfBlob: Blob | null = null;
+  private pdfUrl: string | null = null;
+
+  imprimir(): void {
+    const id = this.memorandoId();
+    if (id === null) {
+      this.exibirMensagem('Salve o memorando antes de imprimir.');
+      return;
+    }
+    this.liberarPdf();
+    this.pdfNome.set(`memorando-${id}.pdf`);
+    this.pdfErro.set(null);
+    this.pdfAberto.set(true);
+    this.pdfCarregando.set(true);
+    this.service.imprimir(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: async (resposta: Blob) => {
+        try {
+          const pdf = resposta instanceof Blob ? resposta : new Blob([resposta], { type: 'application/pdf' });
+          if (pdf.size < 5 || (await pdf.slice(0, 5).text()) !== '%PDF-') {
+            throw new Error('O servidor não retornou um PDF válido.');
+          }
+          if (!this.pdfAberto()) return;
+          this.pdfBlob = new Blob([pdf], { type: 'application/pdf' });
+          this.pdfUrl = URL.createObjectURL(this.pdfBlob);
+          this.pdfSeguro.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfUrl));
+        } catch (erro) {
+          this.pdfErro.set(erro instanceof Error ? erro.message : 'Falha ao preparar o PDF.');
+        } finally {
+          this.pdfCarregando.set(false);
+        }
+      },
+      error: (erro: HttpErrorResponse) => {
+        this.pdfErro.set(this.obterMensagemErro(erro, 'Não foi possível gerar o PDF do memorando.'));
+        this.pdfCarregando.set(false);
+      },
+    });
+  }
+
+  fecharPdf(): void {
+    this.pdfAberto.set(false);
+    this.pdfCarregando.set(false);
+    this.liberarPdf();
+  }
+
+  baixarPdf(): void {
+    if (!this.pdfUrl) return;
+    const link = document.createElement('a');
+    link.href = this.pdfUrl;
+    link.download = this.pdfNome();
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async compartilharPdf(): Promise<void> {
+    if (!this.pdfBlob) return;
+    const arquivo = new File([this.pdfBlob], this.pdfNome(), { type: 'application/pdf' });
+    const nav = navigator as Navigator & {
+      canShare?: (data: ShareData) => boolean;
+      share?: (data: ShareData) => Promise<void>;
+    };
+    if (!nav.share || (nav.canShare && !nav.canShare({ files: [arquivo] }))) {
+      this.baixarPdf();
+      this.exibirMensagem('Compartilhamento indisponível: use o arquivo baixado.');
+      return;
+    }
+    try {
+      await nav.share({ files: [arquivo], title: this.pdfNome() });
+    } catch (erro) {
+      if (erro instanceof Error && erro.name === 'AbortError') return;
+      this.exibirMensagem('Não foi possível compartilhar. Use Baixar PDF.');
+    }
+  }
+
+  private liberarPdf(): void {
+    if (this.pdfUrl) URL.revokeObjectURL(this.pdfUrl);
+    this.pdfUrl = null;
+    this.pdfBlob = null;
+    this.pdfSeguro.set(null);
   }
 
   selecionarFinalidade(option: OpcaoFormulario, event: Event): void {
@@ -549,6 +708,11 @@ export class CadastrarMemorandoRemessas {
       const userName = user.name || user.nome || user.username || '';
 
       this.form.controls.responsible.setValue(userName);
+      // No cadastro, sugerir o usuário autenticado como recebedor.
+      // O campo continua editável para informar outra pessoa, se necessário.
+      if (!this.form.controls.receivedByName.value?.trim()) {
+        this.form.controls.receivedByName.setValue(userName);
+      }
     } catch {
       this.form.controls.responsible.setValue('');
     }
@@ -585,7 +749,8 @@ export class CadastrarMemorandoRemessas {
 
     request$
       .pipe(
-        concatMap((memorando) => this.enviarArquivosPendentes(memorando)),
+        map((memorando) => memorando),
+        concatMap((memorando) => this.service.salvarNotas(memorando.id, this.notas()).pipe(map(() => memorando))),
 
         concatMap((memorando) => {
           if (!shouldSend) {
@@ -610,6 +775,7 @@ export class CadastrarMemorandoRemessas {
           this.form.controls.code.setValue(memorando.code);
 
           this.existingAttachments.set(memorando.attachments ?? []);
+          if ((memorando.invoices ?? []).length > 0) this.notas.set(memorando.invoices);
 
           this.selectedPurposes.set(
             new Set(
@@ -715,17 +881,23 @@ export class CadastrarMemorandoRemessas {
 
       shipping_date: raw.shippingDate ?? '',
 
-      subject: raw.subject?.trim() ?? '',
+      subject: '',
 
-      attention_to: raw.attentionTo?.trim() ?? '',
+      attention_to: '',
 
       notes: raw.notes?.trim() ?? '',
 
       option_ids: [...this.selectedPurposes()],
+      received_by_name: raw.receivedByName?.trim() ?? '',
+      received_at: raw.receivedAt || null,
     };
   }
 
   private validarFormulario(): boolean {
+    if (this.notas().length === 0 || this.notas().some(note => !note.number.trim())) {
+      this.exibirMensagem('Adicione pelo menos uma NF com número válido.');
+      return false;
+    }
     if (this.form.valid) {
       return true;
     }
@@ -934,11 +1106,9 @@ export class CadastrarMemorandoRemessas {
 
         shippingDate: memorando.shipping_date,
 
-        subject: memorando.subject ?? '',
-
-        attentionTo: memorando.attention_to ?? '',
-
         notes: memorando.notes ?? '',
+        receivedByName: memorando.received_by_name?.trim() || this.form.controls.receivedByName.value || '',
+        receivedAt: memorando.received_at ?? '',
       },
       {
         emitEvent: false,
@@ -952,6 +1122,7 @@ export class CadastrarMemorandoRemessas {
     this.selectedPurposes.set(new Set(purposeIds));
 
     this.existingAttachments.set(memorando.attachments ?? []);
+          this.notas.set(memorando.invoices ?? []);
 
     if (memorando.legacy_work_id !== null) {
       // Preserva o vínculo e os dados já salvos, sem depender da busca de clientes.

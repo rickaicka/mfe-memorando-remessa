@@ -8,6 +8,8 @@ import { environment } from '../../../../environments/environment';
 
 import {
   MemorandoArquivo,
+  MemorandoNotaFiscal,
+  LeituraNotaFiscal,
   MemorandoClienteLegado,
   MemorandoCreatePayload,
   MemorandoFormularioOpcoes,
@@ -151,6 +153,20 @@ export class MemorandoRemessaService {
     return this.http.get(`${this.resourceUrl}/${memorandoId}/arquivos/${arquivoId}/download/`, {
       responseType: 'blob',
     });
+  }
+
+  lerNota(file: File): Observable<LeituraNotaFiscal> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<LeituraNotaFiscal>(`${this.resourceUrl}/ler-nota/`, body);
+  }
+
+  salvarNotas(id: number, invoices: MemorandoNotaFiscal[]): Observable<MemorandoNotaFiscal[]> {
+    return this.http.put<MemorandoNotaFiscal[]>(`${this.resourceUrl}/${id}/notas/`, { invoices });
+  }
+
+  imprimir(id: number): Observable<Blob> {
+    return this.http.get(`${this.resourceUrl}/${id}/imprimir/`, { responseType: 'blob' });
   }
 
   enviar(memorandoId: number): Observable<MemorandoRemessaDetalhe> {

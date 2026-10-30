@@ -15,17 +15,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import {
-  IonButton,
-  IonCheckbox,
-  IonIcon,
   IonInput,
-  IonSearchbar,
   IonSelect,
   IonSelectOption,
-  IonSkeletonText,
+  IonSearchbar,
+  IonList,
+  IonCard,
+  IonCardContent,
+  IonItem,
+  IonCheckbox,
+  IonButton,
+  IonSpinner,
 } from '@ionic/angular/standalone';
 
-import { LucideSquarePlus, LucideTrash } from '@lucide/angular';
 
 import { addIcons } from 'ionicons';
 
@@ -57,7 +59,7 @@ import {
 } from '../../models/memorando-remessa.models';
 
 import { MemorandoRemessaService } from '../../services/memorando-remessa.service';
-import { HubIconComponent } from '@daruix/hub-ui';
+import { ButtonComponent, DrxDataTableComponent, HubIconComponent } from '@daruix/hub-ui';
 
 interface MemorandoConsultaResult {
   response: PaginatedResponse<MemorandoRemessaResumo>;
@@ -71,16 +73,20 @@ interface MemorandoConsultaResult {
   styleUrl: './remessas-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    IonButton,
-    IonCheckbox,
-    IonIcon,
     IonInput,
-    IonSearchbar,
     IonSelect,
     IonSelectOption,
-    IonSkeletonText,
-    LucideSquarePlus,
-    LucideTrash,
+    IonSearchbar,
+    IonList,
+    IonCard,
+    IonCardContent,
+    IonItem,
+    IonCheckbox,
+    IonButton,
+    IonSpinner,
+    HubIconComponent,
+    ButtonComponent,
+    DrxDataTableComponent,
   ],
 })
 export class MemorandoRemessaListaComponent {
@@ -116,6 +122,52 @@ export class MemorandoRemessaListaComponent {
     statuses: [...MEMORANDO_REMESSA_STATUS_OPTIONS],
     cost_centers: [],
   });
+
+  /** A tabela do DS opera em modo server para preservar a paginação da API. */
+  readonly rowKey = (row: MemorandoRemessaResumo) => row.id;
+
+  readonly tableColumns = [
+    { key: 'code', label: 'Memorando', value: (row: MemorandoRemessaResumo) => row.code, width: '170px', sortable: false, filterable: false },
+    { key: 'revision', label: 'Rev.', value: (row: MemorandoRemessaResumo) => row.revision, width: '70px', sortable: false, filterable: false, align: 'center' as const },
+    { key: 'cost_center', label: 'PC', value: (row: MemorandoRemessaResumo) => row.cost_center, width: '115px', sortable: false, filterable: false },
+    { key: 'work_name', label: 'Obra', value: (row: MemorandoRemessaResumo) => row.work_name, sortable: false, filterable: false },
+    { key: 'client_name', label: 'Cliente', value: (row: MemorandoRemessaResumo) => row.client_name, sortable: false, filterable: false },
+    { key: 'shipping_date', label: 'Data de envio', value: (row: MemorandoRemessaResumo) => row.shipping_date ?? '', display: (row: MemorandoRemessaResumo) => this.formatarData(row.shipping_date), width: '125px', sortable: false, filterable: false },
+    { key: 'primary_responsible_name', label: 'Responsável', value: (row: MemorandoRemessaResumo) => this.obterResponsaveis(row), sortable: false, filterable: false },
+    {
+      key: 'status', label: 'Status', value: (row: MemorandoRemessaResumo) => row.status,
+      width: '120px', sortable: false, filterable: false,
+      badge: (row: MemorandoRemessaResumo) => ({
+        label: row.status_label,
+        tone: (row.status === 'RASCUNHO' ? 'warning' : row.status === 'ENVIADO' ? 'success' : row.status === 'FALHA_ENVIO' ? 'danger' : 'neutral') as 'warning' | 'success' | 'danger' | 'neutral',
+      }),
+    },
+  ];
+
+  readonly tableActions = [
+    { id: 'open', label: 'Abrir memorando', icon: 'eye' },
+    { id: 'select', label: 'Selecionar para exclusão', icon: 'square', hidden: (row: MemorandoRemessaResumo) => row.status !== 'RASCUNHO' || this.estaSelecionado(row.id) },
+    { id: 'deselect', label: 'Desmarcar seleção', icon: 'square-check', hidden: (row: MemorandoRemessaResumo) => row.status !== 'RASCUNHO' || !this.estaSelecionado(row.id) },
+  ];
+
+  onTableQueryChange(query: { search: string; page: number; pageSize: number }): void {
+    const current = this.filtros();
+    if (current.search === query.search && current.page === query.page && current.pageSize === query.pageSize) return;
+    this.filtros.set({ ...current, search: query.search, page: query.page, pageSize: query.pageSize });
+    this.consultar();
+  }
+
+  onTableAction(event: { action: { id: string }; row: MemorandoRemessaResumo }): void {
+    if (event.action.id === 'open') {
+      this.abrirMemorando(event.row);
+      return;
+    }
+    if (event.row.status !== 'RASCUNHO') return;
+    const selection = new Set(this.selecionados());
+    if (event.action.id === 'select') selection.add(event.row.id);
+    if (event.action.id === 'deselect') selection.delete(event.row.id);
+    this.selecionados.set(selection);
+  }
 
   readonly pageSizeOptions = [10, 20, 50];
 
@@ -162,6 +214,7 @@ export class MemorandoRemessaListaComponent {
     });
 
     this.configurarConsulta();
+    this.carregarOpcoes();
     this.consultar();
   }
 
@@ -315,12 +368,9 @@ export class MemorandoRemessaListaComponent {
   }
 
   obterResponsaveis(memorando: MemorandoRemessaResumo): string {
-    const responsaveis = memorando.primary_responsible_name ?? [];
-    if (responsaveis.length === 0) {
-      return 'Sem responsável';
-    }
-    const primeiroResponsavel = memorando.primary_responsible_name;
-    return `${primeiroResponsavel} `;
+    const responsible = memorando.primary_responsible_name;
+    if (Array.isArray(responsible)) return responsible.join(', ') || 'Sem responsável';
+    return responsible ? String(responsible) : 'Sem responsável';
   }
 
   protected consultar(): void {

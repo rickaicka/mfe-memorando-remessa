@@ -1,530 +1,136 @@
-<main class="memorando-lista">
-  <header class="page-heading">
-    <section class="page-heading__main">
-      <button
-        type="button"
-        class="page-heading__back"
-        aria-label="Voltar"
-        (click)="voltar()"
-      >
-        <svg lucideArrowLeft></svg>
-      </button>
+<section class="mr-page" [attr.aria-busy]="loadingOptions() || loadingMemorando() || processing()">
+  <form class="mr-form" [formGroup]="form" (ngSubmit)="salvar()">
+    @if (error()) { <div class="mr-message mr-message--error" role="alert">{{ error() }}</div> }
 
-      <div class="page-heading__text">
-        <h1>
-          @if (isEditing()) {
-            Editar Memorando de Remessa
-          } @else {
-            Novo Memorando de Remessa
-          }
-        </h1>
-      </div>
-    </section>
-  </header>
-
-  <form
-    class="memorando-form"
-    [formGroup]="form"
-    (ngSubmit)="salvar()"
-  >
-    <div
-      class="memorando-page"
-      [attr.aria-busy]="
-        loadingOptions() ||
-        loadingMemorando() ||
-        processing()
-      "
-    >
-      @if (error()) {
-        <section class="form-card feedback-state">
-          <ion-icon name="alert-circle-outline" />
-
-          <h2>Não foi possível concluir a operação</h2>
-
-          <p>{{ error() }}</p>
-        </section>
-      }
-
-      <section class="form-card general-data">
-        <header class="section-heading">
-          <ion-icon name="document-text-outline" />
-
-          <h2>Dados Gerais</h2>
-        </header>
-
-        <div class="general-grid">
-          <label class="form-field">
-            <span>Memorando de Remessa</span>
-
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              formControlName="code"
-              placeholder="Gerado ao salvar"
-            />
-          </label>
-
-          <section class="pc-search" aria-label="Centro de Custo">
-            <label class="form-field">
-              <span>Centro de Custo</span>
-              <ion-input class="form-control" mode="md" fill="outline"
-                aria-label="Buscar Centro de Custo pelo PC" placeholder="Digite pelo menos 3 caracteres do PC"
-                [value]="pcSearch()" [disabled]="loadingOptions() || loadingMemorando() || processing()"
-                (ionInput)="onPCSearch($event)" />
-            </label>
-<!--            <div class="pc-search__feedback" role="status" aria-live="polite">-->
-<!--              @if (loadingWorks()) {-->
-<!--                <ion-spinner name="crescent" /> <span>Buscando PC...</span>-->
-<!--              } @else if (pcSearchError()) {-->
-<!--                <span>{{ pcSearchError() }}</span>-->
-<!--              } @else if (pcSearchDone() && works().length === 0) {-->
-<!--                <span>Nenhuma obra encontrada para o PC informado.</span>-->
-<!--              } @else if (!selectedWork()) {-->
-<!--                <span>Busque o PC e selecione a obra para preencher os dados do memorando.</span>-->
-<!--              }-->
-<!--            </div>-->
-          </section>
-
+    <drx-card-square nome="Dados do memorando" icone="clipboard-list" color="red">
+      <div class="mr-header-grid">
+        <div class="mr-field mr-field--pc">
+          <label for="mr-pc">PC / Centro de custo</label>
+          <ion-input id="mr-pc" class="mr-control" mode="md" fill="outline" placeholder="Digite o PC, cliente ou obra"
+            [value]="pcSearch()" [disabled]="loadingOptions() || loadingMemorando() || processing()"
+            (ionInput)="onPCSearch($event)" />
+          @if (loadingWorks()) { <span class="mr-hint" role="status">Buscando PCs...</span> }
+          @if (pcSearchError()) { <span class="mr-hint mr-hint--error">{{ pcSearchError() }}</span> }
           @if (works().length > 0) {
-              <ul class="pc-search__results" aria-label="PCs encontrados">
-                @for (work of works(); track work.legacy_work_id) {
-                  <li>
-                    <button type="button" class="pc-search__result" (click)="selecionarPC(work)"
-                      [disabled]="processing() || loadingMemorando()">
-                      <strong>{{ work.cost_center }} — {{ work.work_name }}</strong>
-                      <span>{{ work.client_name }}</span>
-                    </button>
-                  </li>
-                }
-              </ul>
-          }
-
-          <label class="form-field">
-            <span>Data de Envio</span>
-
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              type="date"
-              formControlName="shippingDate"
-            />
-          </label>
-
-          <label class="form-field">
-            <span>Responsável</span>
-
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              formControlName="responsible"
-              placeholder="Usuário responsável"
-            />
-          </label>
-
-          <label class="form-field form-field--client">
-            <span>Cliente</span>
-            <ion-input class="form-control" mode="md" fill="outline"
-              formControlName="clientName" placeholder="Preenchido ao selecionar o PC" />
-          </label>
-
-          <label class="form-field">
-            <span>Obra</span>
-            <ion-input class="form-control" mode="md" fill="outline"
-              formControlName="workName" placeholder="Preenchida ao selecionar o PC" />
-          </label>
-
-          <label class="form-field">
-            <span>Assunto</span>
-
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              formControlName="subject"
-              placeholder="Digite o assunto"
-            />
-          </label>
-
-          <label class="form-field">
-            <span>ATT</span>
-
-            <ion-input
-              class="form-control"
-              mode="md"
-              fill="outline"
-              formControlName="attentionTo"
-              placeholder="Digite o nome do destinatário"
-            />
-          </label>
-        </div>
-      </section>
-
-      <section class="form-card selection-card">
-        <div class="selection-grid">
-          <section class="selection-column">
-            <h3>Documentos Enviados</h3>
-
-            <div class="checkbox-list">
-              @if (loadingOptions()) {
-                <ion-spinner name="crescent" />
-              } @else {
-                @for (
-                  option of purposes();
-                  track option.id
-                  ) {
-                  <ion-checkbox
-                    class="checkbox-option drx-card--font-quicksand"
-                    mode="md"
-                    labelPlacement="end"
-                    [checked]="estaFinalidadeSelecionada(option.id)"
-                    (ionChange)="selecionarFinalidade(option, $event)"
-                  >
-                    <span class="">{{ option.label }}</span>
-                  </ion-checkbox>
-                } @empty {
-                  <span class="selection-empty">
-                    Nenhuma finalidade disponível.
-                  </span>
-                }
+            <ul class="mr-pc-results" aria-label="PCs encontrados">
+              @for (work of works(); track work.legacy_work_id) {
+                <li><button type="button" (click)="selecionarPC(work)" [disabled]="processing() || loadingMemorando()">
+                  <strong>{{ work.cost_center }} · {{ work.work_name }}</strong><small>{{ work.client_name }}</small>
+                </button></li>
               }
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <section class="form-card observations-card">
-        <header
-          class="
-            section-heading
-            section-heading--neutral
-          "
-        >
-          <ion-icon name="chatbox-outline" />
-
-          <h2>Observações</h2>
-        </header>
-
-        <div class="textarea-wrapper">
-          <ion-textarea
-            #notesTextarea
-            class="notes-control"
-            mode="md"
-            fill="outline"
-            formControlName="notes"
-            placeholder="Digite as observações..."
-            [autoGrow]="true"
-            [maxlength]="1000"
-            [counter]="false"
-            [rows]="4"
-          />
-
-          <span class="character-counter">
-            {{ notesLength }}/1000
-          </span>
-        </div>
-      </section>
-
-      <section class="form-card files-card">
-        <header
-          class="
-            section-heading
-            section-heading--neutral
-          "
-        >
-          <ion-icon name="attach-outline" />
-
-          <h2>Arquivos</h2>
-        </header>
-
-        <input
-          #fileInput
-          class="visually-hidden"
-          type="file"
-          multiple
-          accept="
-            .pdf,
-            .doc,
-            .docx,
-            .xls,
-            .xlsx,
-            .jpg,
-            .jpeg,
-            .png,
-            .dwg
-          "
-          (change)="onFileInputChange($event)"
-        />
-
-        <div
-          class="upload-zone"
-          [class.upload-zone--dragging]="
-            isDragging()
-          "
-          role="button"
-          tabindex="0"
-          aria-label="Selecionar arquivos para upload"
-          (click)="fileInput.click()"
-          (keydown.enter)="fileInput.click()"
-          (keydown.space)="fileInput.click()"
-          (dragenter)="onDragEnter($event)"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)"
-        >
-          <app-hub-icon
-            [name]="'cloud-upload'"
-          />
-
-          <p>
-            Arraste e solte os arquivos aqui
-
-            <span>ou</span>
-          </p>
-
-          <ion-button
-            type="button"
-            fill="outline"
-            size="small"
-            [disabled]="processing()"
-            (click)="
-              $event.stopPropagation();
-              fileInput.click()
-            "
-          >
-            <app-hub-icon
-              [name]="'file-upload'"
-            />
-
-            Upload de Arquivo
-          </ion-button>
-        </div>
-
-        @if (
-          existingAttachments().length > 0 ||
-          pendingAttachments().length > 0
-          ) {
-          <div class="attachments">
-            @for (
-              attachment
-                of existingAttachments();
-              track attachment.id
-              ) {
-              <article class="attachment-item">
-                <div class="attachment-item__icon">
-                  <ion-icon
-                    name="document-text-outline"
-                  />
-                </div>
-
-                <div
-                  class="
-                    attachment-item__information
-                  "
-                >
-                  <strong>
-                    {{ attachment.original_name }}
-                  </strong>
-
-                  <p>
-                    {{
-                      formatarTamanho(
-                        attachment.size
-                      )
-                    }}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  class="
-                    attachment-action
-                    attachment-action--view
-                  "
-                  [attr.aria-label]="
-                    'Visualizar arquivo ' +
-                    attachment.original_name
-                  "
-                  [disabled]="processing()"
-                  (click)="
-                    visualizarArquivoExistente(
-                      attachment
-                    )
-                  "
-                >
-                  <app-hub-icon
-                    [name]="'eye-outline'"
-                  />
-
-                  <span>Visualizar</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="attachment-action"
-                  [attr.aria-label]="
-                    'Remover arquivo ' +
-                    attachment.original_name
-                  "
-                  [disabled]="processing()"
-                  (click)="
-                    removerArquivoExistente(
-                      attachment
-                    )
-                  "
-                >
-                  <app-hub-icon
-                    [name]="'trash-outline'"
-                  />
-                </button>
-              </article>
-            }
-
-            @for (
-              attachment
-                of pendingAttachments();
-              track attachment.id
-              ) {
-              <article class="attachment-item">
-                <div class="attachment-item__icon">
-                  <ion-icon
-                    name="document-text-outline"
-                  />
-                </div>
-
-                <div
-                  class="
-                    attachment-item__information
-                  "
-                >
-                  <strong>
-                    {{ attachment.name }}
-                  </strong>
-
-                  <p>
-                    {{ attachment.sizeLabel }}
-                    • Aguardando envio
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  class="
-                    attachment-action
-                    attachment-action--view
-                  "
-                  [attr.aria-label]="
-                    'Visualizar arquivo ' +
-                    attachment.name
-                  "
-                  [disabled]="processing()"
-                  (click)="
-                    visualizarArquivoPendente(
-                      attachment
-                    )
-                  "
-                >
-                  <app-hub-icon
-                    [name]="'eye-outline'"
-                  />
-
-                  <span>Visualizar</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="attachment-action"
-                  [attr.aria-label]="
-                    'Remover arquivo ' +
-                    attachment.name
-                  "
-                  [disabled]="processing()"
-                  (click)="
-                    removerArquivoPendente(
-                      attachment.id
-                    )
-                  "
-                >
-                  <app-hub-icon
-                    [name]="'trash-outline'"
-                  />
-                </button>
-              </article>
-            }
-          </div>
-        }
-      </section>
-    </div>
-
-    <footer class="form-actions">
-      <ion-button
-        type="button"
-        class="send-button"
-        fill="outline"
-        [disabled]="
-          processing() ||
-          loadingOptions() ||
-          loadingMemorando()
-        "
-        (click)="enviar()"
-      >
-        <app-hub-icon
-          [name]="'send-outline'"
-        />
-
-        Enviar
-      </ion-button>
-
-      <div class="save-actions">
-        <ion-button
-          type="submit"
-          class="save-button"
-          [disabled]="
-            processing() ||
-            loadingOptions() ||
-            loadingMemorando()
-          "
-        >
-          @if (processing()) {
-            <ion-spinner
-              slot="start"
-              name="crescent"
-            />
-          } @else {
-            <app-hub-icon
-              [name]="'save'"
-            />
+            </ul>
           }
+        </div>
+        <div class="mr-field"><label for="mr-number">MR nº</label><ion-input id="mr-number" class="mr-control" mode="md" fill="outline" formControlName="code" /></div>
+        <div class="mr-field"><label for="mr-shipping">Data de envio</label><ion-input id="mr-shipping" class="mr-control" mode="md" fill="outline" type="date" formControlName="shippingDate" /></div>
+        <div class="mr-field"><label for="mr-responsible">Responsável</label><ion-input id="mr-responsible" class="mr-control" mode="md" fill="outline" formControlName="responsible" /></div>
+        <div class="mr-field mr-field--client"><label for="mr-client">Cliente</label><ion-input id="mr-client" class="mr-control" mode="md" fill="outline" formControlName="clientName" /></div>
+        <div class="mr-field mr-field--work"><label for="mr-work">Obra</label><ion-input id="mr-work" class="mr-control" mode="md" fill="outline" formControlName="workName" /></div>
+      </div>
+    </drx-card-square>
 
-          Salvar
-        </ion-button>
+    <drx-card-square nome="Notas fiscais" icone="file-text" color="red">
+      <div class="mr-section-toolbar">
+        <p class="mr-hint">Fotografe ou importe XML/PDF e confira os dados reconhecidos antes de salvar.</p>
+        <div class="mr-actions">
+          <input #invoiceCamera class="visually-hidden" type="file" accept="image/*" capture="environment" (change)="capturarNota($event)" />
+          <input #invoiceGallery class="visually-hidden" type="file" accept="image/*" (change)="capturarNota($event)" />
+          <input #invoiceFile class="visually-hidden" type="file" accept=".xml,.pdf,.jpg,.jpeg,.png,.webp,application/xml,text/xml,application/pdf,image/*" (change)="capturarNota($event)" />
+          <ion-button class="mr-mobile-add-invoice" mode="md" expand="block" fill="outline" [disabled]="readingNote() || processing()" (click)="abrirMenuNota()">Adicionar nota fiscal</ion-button>
+          <drx-button class="mr-desktop-read-invoice" variant="secondary" font="gothic" [disabled]="readingNote() || processing()" (click)="invoiceFile.click()"><app-hub-icon name="camera" /> Ler nota fiscal</drx-button>
+          <drx-button variant="tertiary" font="gothic" [disabled]="processing()" (click)="adicionarNota()"><app-hub-icon name="circle-plus" /> Adicionar manualmente</drx-button>
+        </div>
+      </div>
+      @if (readingNote()) { <div class="mr-message" role="status"><ion-spinner name="crescent" /> Analisando documento...</div> }
+      @if (notas().length === 0) {
+        <div class="mr-empty"><app-hub-icon name="file-text" /><strong>Nenhuma nota fiscal adicionada</strong><span>Importe uma nota ou cadastre-a manualmente.</span></div>
+      }
+      <div class="mr-invoice-list">
+        @for (nota of notas(); track $index; let i = $index) {
+          <article class="mr-invoice">
+            <header class="mr-invoice__header">
+              <div class="mr-invoice__title"><span class="mr-invoice__index">{{ i + 1 }}</span><div><strong>{{ nota.number ? 'NF ' + nota.number : 'Nova nota fiscal' }}</strong><small>{{ nota.issuer_name || 'Preencha os dados da nota' }}</small></div></div>
+              <drx-button variant="tertiary" font="gothic" [disabled]="processing()" (click)="removerNota(i)"><app-hub-icon name="trash" /> Remover</drx-button>
+            </header>
+            <div class="mr-invoice-grid">
+              <div class="mr-field"><label>Número da NF <span class="mr-required">*</span></label><ion-input class="mr-control" mode="md" fill="outline" [value]="nota.number" (ionInput)="alterarNota(i, 'number', $any($event).detail.value ?? '')" /></div>
+              <div class="mr-field"><label>Série</label><ion-input class="mr-control" mode="md" fill="outline" [value]="nota.series" (ionInput)="alterarNota(i, 'series', $any($event).detail.value ?? '')" /></div>
+              <div class="mr-field"><label>Razão social</label><ion-input class="mr-control" mode="md" fill="outline" [value]="nota.issuer_name" (ionInput)="alterarNota(i, 'issuer_name', $any($event).detail.value ?? '')" /></div>
+              <div class="mr-field"><label>Nome fantasia</label><ion-input class="mr-control" mode="md" fill="outline" [value]="nota.trade_name" (ionInput)="alterarNota(i, 'trade_name', $any($event).detail.value ?? '')" /></div>
+              <div class="mr-field"><label>CNPJ do emitente</label><ion-input class="mr-control" mode="md" fill="outline" inputmode="numeric" [value]="nota.issuer_document" (ionInput)="alterarNota(i, 'issuer_document', $any($event).detail.value ?? '')" /></div>
+              <div class="mr-field"><label>Valor total (R$)</label><ion-input class="mr-control" mode="md" fill="outline" type="number" [value]="nota.total_value ?? ''" (ionInput)="alterarNota(i, 'total_value', $any($event).detail.value ?? '')" /></div>
+            </div>
+          </article>
+        }
+      </div>
+    </drx-card-square>
 
-        <button
-          type="button"
-          class="save-menu-button"
-          aria-label="Salvar memorando como rascunho"
-          [disabled]="
-            processing() ||
-            loadingOptions() ||
-            loadingMemorando()
-          "
-          (click)="salvar()"
-        >
-          <app-hub-icon
-            [name]="'chevron-down'"
-          />
+    <drx-card-square nome="Recebimento" icone="user-round-check" color="red">
+      <div class="mr-receipt-grid">
+        <div class="mr-field"><label>Nome de quem recebeu <span class="mr-required">*</span></label><ion-input class="mr-control" mode="md" fill="outline" formControlName="receivedByName" placeholder="Nome completo" /></div>
+        <div class="mr-field"><label>Data do recebimento</label><ion-input class="mr-control" mode="md" fill="outline" type="date" formControlName="receivedAt" /></div>
+      </div>
+    </drx-card-square>
+
+    <drx-card-square nome="Observações" icone="message-square" color="red">
+      <div class="mr-notes"><ion-textarea #notesTextarea class="mr-control mr-control--textarea" mode="md" fill="outline" formControlName="notes" placeholder="Informações adicionais (opcional)" [autoGrow]="true" [maxlength]="1000" [rows]="3" />
+        <span class="mr-counter">{{ notesLength }}/1000</span></div>
+    </drx-card-square>
+
+
+
+    <drx-save-footer class="mr-desktop-footer" [showCancel]="false" [showSave]="false" [showSaveAndContinue]="false" [sticky]="true">
+      <ng-container drxFooterStart><span class="mr-hint">{{ notas().length }} {{ notas().length === 1 ? 'nota fiscal' : 'notas fiscais' }} vinculadas</span></ng-container>
+      <ng-container drxFooterAction>
+        <drx-button variant="tertiary" font="gothic" [disabled]="!isEditing() || processing()" (click)="imprimir()"><app-hub-icon name="printer" /> Gerar PDF / Imprimir</drx-button>
+        <drx-button variant="secondary" font="gothic" [disabled]="processing() || loadingOptions() || loadingMemorando()" (click)="salvar()"><app-hub-icon name="save" /> Salvar memorando</drx-button>
+        <drx-button variant="primary" font="gothic" [disabled]="processing() || loadingOptions() || loadingMemorando()" (click)="enviar()"><app-hub-icon name="send" /> Enviar por e-mail</drx-button>
+      </ng-container>
+    </drx-save-footer>
+
+    <footer class="mr-mobile-footer" aria-label="Ações do memorando no celular">
+      <div class="mr-mobile-footer__count">{{ notas().length }} {{ notas().length === 1 ? 'documento vinculado' : 'documentos vinculados' }}</div>
+      <div class="mr-mobile-footer__actions">
+        <button class="mr-mobile-footer__save" type="button"
+          aria-label="Abrir opções de salvar e imprimir"
+          aria-haspopup="menu" [attr.aria-expanded]="menuSalvarAberto()"
+          [disabled]="processing() || loadingOptions() || loadingMemorando()"
+          (click)="abrirMenuSalvar()">
+          <span class="mr-mobile-footer__save-label">SALVAR</span>
+          <span class="mr-mobile-footer__save-arrow" aria-hidden="true"><app-hub-icon name="chevron-down" /></span>
         </button>
+        <button class="mr-mobile-footer__send" type="button"
+          [disabled]="processing() || loadingOptions() || loadingMemorando()"
+          (click)="enviar()">ENVIAR</button>
       </div>
     </footer>
-
-    <ion-toast
-      position="top"
-      [isOpen]="toastOpen()"
-      [message]="toastMessage()"
-      [duration]="2500"
-      (didDismiss)="toastOpen.set(false)"
-    />
+    <ion-action-sheet header="Ações do memorando" [isOpen]="menuSalvarAberto()" [buttons]="opcoesMenuSalvar" (didDismiss)="menuSalvarAberto.set(false)" />
+    <ion-action-sheet header="Adicionar nota fiscal" [isOpen]="menuNotaAberto()" [buttons]="opcoesMenuNota" (didDismiss)="menuNotaAberto.set(false)" />
+    @if (pdfAberto()) {
+      <div class="mr-pdf-overlay" role="presentation" (click)="fecharPdf()">
+        <section class="mr-pdf-dialog" role="dialog" aria-modal="true" aria-label="Visualizar PDF do memorando" (click)="$event.stopPropagation()">
+          <header class="mr-pdf-dialog__header">
+            <strong>PDF do memorando</strong>
+            <button type="button" class="mr-pdf-dialog__close" (click)="fecharPdf()" aria-label="Fechar visualização">✕</button>
+          </header>
+          @if (pdfCarregando()) {
+            <div class="mr-pdf-dialog__status"><ion-spinner name="crescent" /> Gerando PDF...</div>
+          } @else if (pdfErro()) {
+            <div class="mr-pdf-dialog__status mr-pdf-dialog__status--error" role="alert">{{ pdfErro() }}</div>
+          } @else if (pdfSeguro()) {
+            <div class="mr-pdf-dialog__preview">
+              <iframe [src]="pdfSeguro()" title="Prévia do PDF" loading="eager"></iframe>
+              <p>Se a prévia não aparecer neste dispositivo, escolha Baixar ou Compartilhar.</p>
+            </div>
+          }
+          <footer class="mr-pdf-dialog__actions">
+            <button type="button" (click)="fecharPdf()">Fechar</button>
+            <button type="button" [disabled]="!pdfSeguro()" (click)="baixarPdf()">Baixar PDF</button>
+            <button type="button" class="mr-pdf-dialog__primary" [disabled]="!pdfSeguro()" (click)="compartilharPdf()">Compartilhar</button>
+          </footer>
+        </section>
+      </div>
+    }
+    <ion-toast position="top" [isOpen]="toastOpen()" [message]="toastMessage()" [duration]="2500" (didDismiss)="toastOpen.set(false)" />
   </form>
-</main>
+</section>
