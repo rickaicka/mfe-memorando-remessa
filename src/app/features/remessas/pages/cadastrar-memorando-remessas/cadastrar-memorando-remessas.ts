@@ -29,9 +29,17 @@ import {
   IonActionSheet,
 } from '@ionic/angular/standalone';
 
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
+
 import { HUB_USER_KEY } from '@daruix/hub-auth';
 
-import { ButtonComponent, CardSquareComponent, HubIconComponent, SaveFooterComponent } from '@daruix/hub-ui';
+import {
+  ButtonComponent,
+  CardSquareComponent,
+  HubIconComponent,
+  SaveFooterComponent,
+} from '@daruix/hub-ui';
 
 import { addIcons } from 'ionicons';
 
@@ -137,7 +145,12 @@ export class CadastrarMemorandoRemessas {
   get opcoesMenuSalvar() {
     return [
       { text: 'Salvar memorando', icon: 'save-outline', handler: () => this.salvar() },
-      { text: 'Gerar PDF / Imprimir', icon: 'print-outline', disabled: !this.isEditing(), handler: () => this.imprimir() },
+      {
+        text: 'Gerar PDF / Imprimir',
+        icon: 'print-outline',
+        disabled: !this.isEditing(),
+        handler: () => this.imprimir(),
+      },
       { text: 'Cancelar', role: 'cancel', icon: 'close-outline' },
     ];
   }
@@ -149,9 +162,23 @@ export class CadastrarMemorandoRemessas {
 
   readonly menuNotaAberto = signal(false);
   readonly opcoesMenuNota = [
-    { text: 'Tirar foto', icon: 'camera-outline', handler: () => this.invoiceCameraInput?.nativeElement.click() },
-    { text: 'Escolher da galeria', icon: 'images-outline', handler: () => this.invoiceGalleryInput?.nativeElement.click() },
-    { text: 'Selecionar arquivo (XML/PDF)', icon: 'document-text-outline', handler: () => this.invoiceFileInput?.nativeElement.click() },
+    {
+      text: 'Tirar foto',
+      icon: 'camera-outline',
+      handler: () => {
+        void this.tirarFotoNota();
+      },
+    },
+    {
+      text: 'Escolher da galeria',
+      icon: 'images-outline',
+      handler: () => this.invoiceGalleryInput?.nativeElement.click(),
+    },
+    {
+      text: 'Selecionar arquivo (XML/PDF)',
+      icon: 'document-text-outline',
+      handler: () => this.invoiceFileInput?.nativeElement.click(),
+    },
     { text: 'Cancelar', role: 'cancel', icon: 'close-outline' },
   ];
 
@@ -296,36 +323,95 @@ export class CadastrarMemorandoRemessas {
     this.persistirMemorando(true);
   }
 
+  private async tirarFotoNota(): Promise<void> {
+    if (this.readingNote() || this.processing()) return;
+
+    if (!Capacitor.isNativePlatform()) {
+      this.invoiceCameraInput?.nativeElement.click();
+      return;
+    }
+
+    this.readingNote.set(true);
+    let file: File;
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        saveToGallery: false,
+      });
+      if (!photo.webPath) throw new Error('Foto sem caminho disponível.');
+
+      const response = await fetch(photo.webPath);
+      if (!response.ok) throw new Error('Não foi possível abrir a foto.');
+
+      const blob = await response.blob();
+      file = new File([blob], `nota-fiscal.${photo.format}`, {
+        type: blob.type.startsWith('image/') ? blob.type : `image/${photo.format}`,
+      });
+    } catch (error) {
+      if (!this.destroyRef.destroyed && !/cancel(?:led|ed|amento)/i.test(String(error))) {
+        this.exibirMensagem('Não foi possível abrir a câmera ou carregar a foto.');
+      }
+      return;
+    } finally {
+      this.readingNote.set(false);
+    }
+
+    if (!this.destroyRef.destroyed) this.lerArquivoNota(file);
+  }
+
   capturarNota(event: Event): void {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     target.value = '';
-    if (!file) return;
+    if (file) this.lerArquivoNota(file);
+  }
+
+  private lerArquivoNota(file: File): void {
     this.readingNote.set(true);
-    this.service.lerNota(file).pipe(finalize(() => this.readingNote.set(false)), takeUntilDestroyed(this.destroyRef))
+    this.service
+      .lerNota(file)
+      .pipe(
+        finalize(() => this.readingNote.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (result) => {
           const { warnings, raw_text, id, ...note } = result;
-          this.notas.update(items => [...items, note]);
+          this.notas.update((items) => [...items, note]);
           this.exibirMensagem(warnings?.join(' ') || 'Confira os dados extraídos antes de salvar.');
         },
-        error: (err: HttpErrorResponse) => this.exibirMensagem(this.obterMensagemErro(err, 'Não foi possível ler a nota.')),
+        error: (err: HttpErrorResponse) =>
+          this.exibirMensagem(this.obterMensagemErro(err, 'Não foi possível ler a nota.')),
       });
   }
 
   adicionarNota(): void {
-    this.notas.update(items => [...items, {
-      number: '', series: '', issuer_name: '', trade_name: '', issuer_document: '',
-      total_value: null, access_key: '', description: '', source: 'MANUAL',
-    }]);
+    this.notas.update((items) => [
+      ...items,
+      {
+        number: '',
+        series: '',
+        issuer_name: '',
+        trade_name: '',
+        issuer_document: '',
+        total_value: null,
+        access_key: '',
+        description: '',
+        source: 'MANUAL',
+      },
+    ]);
   }
 
   alterarNota(index: number, field: keyof MemorandoNotaFiscal, value: string): void {
-    this.notas.update(items => items.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    this.notas.update((items) =>
+      items.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    );
   }
 
   removerNota(index: number): void {
-    this.notas.update(items => items.filter((_, i) => i !== index));
+    this.notas.update((items) => items.filter((_, i) => i !== index));
   }
 
   /** Abre um visualizador real, com download alternativo se o PDF não renderizar. */
@@ -349,28 +435,36 @@ export class CadastrarMemorandoRemessas {
     this.pdfErro.set(null);
     this.pdfAberto.set(true);
     this.pdfCarregando.set(true);
-    this.service.imprimir(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: async (resposta: Blob) => {
-        try {
-          const pdf = resposta instanceof Blob ? resposta : new Blob([resposta], { type: 'application/pdf' });
-          if (pdf.size < 5 || (await pdf.slice(0, 5).text()) !== '%PDF-') {
-            throw new Error('O servidor não retornou um PDF válido.');
+    this.service
+      .imprimir(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: async (resposta: Blob) => {
+          try {
+            const pdf =
+              resposta instanceof Blob
+                ? resposta
+                : new Blob([resposta], { type: 'application/pdf' });
+            if (pdf.size < 5 || (await pdf.slice(0, 5).text()) !== '%PDF-') {
+              throw new Error('O servidor não retornou um PDF válido.');
+            }
+            if (!this.pdfAberto()) return;
+            this.pdfBlob = new Blob([pdf], { type: 'application/pdf' });
+            this.pdfUrl = URL.createObjectURL(this.pdfBlob);
+            this.pdfSeguro.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfUrl));
+          } catch (erro) {
+            this.pdfErro.set(erro instanceof Error ? erro.message : 'Falha ao preparar o PDF.');
+          } finally {
+            this.pdfCarregando.set(false);
           }
-          if (!this.pdfAberto()) return;
-          this.pdfBlob = new Blob([pdf], { type: 'application/pdf' });
-          this.pdfUrl = URL.createObjectURL(this.pdfBlob);
-          this.pdfSeguro.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfUrl));
-        } catch (erro) {
-          this.pdfErro.set(erro instanceof Error ? erro.message : 'Falha ao preparar o PDF.');
-        } finally {
+        },
+        error: (erro: HttpErrorResponse) => {
+          this.pdfErro.set(
+            this.obterMensagemErro(erro, 'Não foi possível gerar o PDF do memorando.'),
+          );
           this.pdfCarregando.set(false);
-        }
-      },
-      error: (erro: HttpErrorResponse) => {
-        this.pdfErro.set(this.obterMensagemErro(erro, 'Não foi possível gerar o PDF do memorando.'));
-        this.pdfCarregando.set(false);
-      },
-    });
+        },
+      });
   }
 
   fecharPdf(): void {
@@ -643,31 +737,36 @@ export class CadastrarMemorandoRemessas {
   }
 
   private configurarAlteracoesFormulario(): void {
-    this.buscaPC.pipe(
-      switchMap((query) => {
-        this.pcSearchError.set(null);
-        this.pcSearchDone.set(false);
-        this.works.set([]);
-        if (query.length < 3) {
-          this.loadingWorks.set(false);
-          return of([] as MemorandoObraLegado[]);
-        }
-        this.loadingWorks.set(true);
-        return timer(300).pipe(
-          switchMap(() => this.service.buscarObrasPorPC(query)),
-          map((response) => this.extrairResultados(response)),
-          tap(() => this.pcSearchDone.set(true)),
-          catchError((httpError: HttpErrorResponse) => {
-            this.pcSearchError.set(this.obterMensagemErro(
-              httpError, 'Não foi possível buscar o PC. Digite novamente para tentar de novo.',
-            ));
+    this.buscaPC
+      .pipe(
+        switchMap((query) => {
+          this.pcSearchError.set(null);
+          this.pcSearchDone.set(false);
+          this.works.set([]);
+          if (query.length < 3) {
+            this.loadingWorks.set(false);
             return of([] as MemorandoObraLegado[]);
-          }),
-          finalize(() => this.loadingWorks.set(false)),
-        );
-      }),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe((works) => this.works.set(works));
+          }
+          this.loadingWorks.set(true);
+          return timer(300).pipe(
+            switchMap(() => this.service.buscarObrasPorPC(query)),
+            map((response) => this.extrairResultados(response)),
+            tap(() => this.pcSearchDone.set(true)),
+            catchError((httpError: HttpErrorResponse) => {
+              this.pcSearchError.set(
+                this.obterMensagemErro(
+                  httpError,
+                  'Não foi possível buscar o PC. Digite novamente para tentar de novo.',
+                ),
+              );
+              return of([] as MemorandoObraLegado[]);
+            }),
+            finalize(() => this.loadingWorks.set(false)),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((works) => this.works.set(works));
   }
 
   onPCSearch(event: Event): void {
@@ -750,7 +849,9 @@ export class CadastrarMemorandoRemessas {
     request$
       .pipe(
         map((memorando) => memorando),
-        concatMap((memorando) => this.service.salvarNotas(memorando.id, this.notas()).pipe(map(() => memorando))),
+        concatMap((memorando) =>
+          this.service.salvarNotas(memorando.id, this.notas()).pipe(map(() => memorando)),
+        ),
 
         concatMap((memorando) => {
           if (!shouldSend) {
@@ -894,7 +995,7 @@ export class CadastrarMemorandoRemessas {
   }
 
   private validarFormulario(): boolean {
-    if (this.notas().length === 0 || this.notas().some(note => !note.number.trim())) {
+    if (this.notas().length === 0 || this.notas().some((note) => !note.number.trim())) {
       this.exibirMensagem('Adicione pelo menos uma NF com número válido.');
       return false;
     }
@@ -1107,7 +1208,8 @@ export class CadastrarMemorandoRemessas {
         shippingDate: memorando.shipping_date,
 
         notes: memorando.notes ?? '',
-        receivedByName: memorando.received_by_name?.trim() || this.form.controls.receivedByName.value || '',
+        receivedByName:
+          memorando.received_by_name?.trim() || this.form.controls.receivedByName.value || '',
         receivedAt: memorando.received_at ?? '',
       },
       {
@@ -1122,7 +1224,7 @@ export class CadastrarMemorandoRemessas {
     this.selectedPurposes.set(new Set(purposeIds));
 
     this.existingAttachments.set(memorando.attachments ?? []);
-          this.notas.set(memorando.invoices ?? []);
+    this.notas.set(memorando.invoices ?? []);
 
     if (memorando.legacy_work_id !== null) {
       // Preserva o vínculo e os dados já salvos, sem depender da busca de clientes.
@@ -1136,11 +1238,14 @@ export class CadastrarMemorandoRemessas {
       };
       this.selectedWork.set(work);
       this.pcSearch.set(work.cost_center);
-      this.form.patchValue({
-        workId: work.legacy_work_id,
-        clientName: work.client_name,
-        workName: work.work_name,
-      }, { emitEvent: false });
+      this.form.patchValue(
+        {
+          workId: work.legacy_work_id,
+          clientName: work.client_name,
+          workName: work.work_name,
+        },
+        { emitEvent: false },
+      );
     }
     this.form.markAsPristine();
     this.form.markAsUntouched();
